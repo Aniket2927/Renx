@@ -1,0 +1,543 @@
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+import { eq, desc, and, or, sql } from 'drizzle-orm';
+import {
+  users,
+  portfolios,
+  positions,
+  orders,
+  aiSignals,
+  watchlists,
+  newsArticles,
+  tradingStrategies,
+  backtestResults,
+  communityPosts,
+  tradingBots,
+  marketData,
+  screeningResults,
+  riskAlerts,
+  optionsData,
+  copyTradingRelations,
+  type User,
+  type Portfolio,
+  type Position,
+  type Order,
+  type AISignal,
+  type InsertAISignal,
+  type Watchlist,
+  type NewsArticle,
+  type TradingStrategy,
+  type BacktestResult,
+  type CommunityPost,
+  type TradingBot,
+  type InsertTradingBot,
+  type MarketData,
+  type InsertMarketData,
+  type ScreeningResult,
+  type InsertScreeningResult,
+  type RiskAlert,
+  type InsertRiskAlert,
+  type OptionsData,
+  type InsertOptionsData,
+  type CopyTradingRelation
+} from '../shared/schema';
+
+// Database connection
+const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/renx';
+const client = postgres(connectionString);
+const db = drizzle(client);
+
+export interface IStorage {
+  // User operations (mandatory for Replit Auth)
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: any): Promise<User>;
+  
+  // Portfolio operations
+  getUserPortfolios(userId: string): Promise<Portfolio[]>;
+  getDefaultPortfolio(userId: string): Promise<Portfolio | undefined>;
+  createPortfolio(portfolio: any): Promise<Portfolio>;
+  updatePortfolio(id: string, updates: Partial<Portfolio>): Promise<Portfolio>;
+  
+  // Position operations
+  getPortfolioPositions(portfolioId: string): Promise<Position[]>;
+  getPosition(portfolioId: string, symbol: string): Promise<Position | undefined>;
+  upsertPosition(position: any): Promise<Position>;
+  deletePosition(id: string): Promise<void>;
+  
+  // Order operations
+  getPortfolioOrders(portfolioId: string): Promise<Order[]>;
+  createOrder(order: any): Promise<Order>;
+  updateOrder(id: string, updates: Partial<Order>): Promise<Order>;
+  getPendingOrders(portfolioId: string): Promise<Order[]>;
+  
+  // AI Signal operations
+  getActiveAISignals(): Promise<AISignal[]>;
+  getAISignalsBySymbol(symbol: string): Promise<AISignal[]>;
+  createAISignal(signal: InsertAISignal): Promise<AISignal>;
+  deactivateAISignal(id: string): Promise<void>;
+  
+  // Watchlist operations
+  getUserWatchlists(userId: string): Promise<Watchlist[]>;
+  createWatchlist(watchlist: any): Promise<Watchlist>;
+  updateWatchlist(id: string, updates: Partial<Watchlist>): Promise<Watchlist>;
+  deleteWatchlist(id: string): Promise<void>;
+  
+  // News operations
+  getLatestNews(limit?: number): Promise<NewsArticle[]>;
+  getNewsBySymbol(symbol: string, limit?: number): Promise<NewsArticle[]>;
+  createNewsArticle(article: any): Promise<NewsArticle>;
+  
+  // Trading Strategy operations
+  getUserStrategies(userId: string): Promise<TradingStrategy[]>;
+  createStrategy(strategy: any): Promise<TradingStrategy>;
+  updateStrategy(id: string, updates: Partial<TradingStrategy>): Promise<TradingStrategy>;
+  deleteStrategy(id: string): Promise<void>;
+  
+  // Backtest operations
+  getStrategyBacktests(strategyId: string): Promise<BacktestResult[]>;
+  createBacktestResult(result: any): Promise<BacktestResult>;
+  
+  // Community operations
+  getCommunityPosts(limit?: number): Promise<(CommunityPost & { user: Pick<User, 'firstName' | 'lastName' | 'profileImageUrl'> })[]>;
+  createCommunityPost(post: any): Promise<CommunityPost>;
+  updateCommunityPost(id: string, updates: Partial<CommunityPost>): Promise<CommunityPost>;
+  deleteCommunityPost(id: string): Promise<void>;
+  
+  // Trading Bot operations
+  getUserTradingBots(userId: string): Promise<TradingBot[]>;
+  getTradingBot(id: string): Promise<TradingBot | undefined>;
+  createTradingBot(bot: InsertTradingBot): Promise<TradingBot>;
+  updateTradingBot(id: string, updates: Partial<TradingBot>): Promise<TradingBot>;
+  deleteTradingBot(id: string): Promise<void>;
+  
+  // Market Data operations
+  getMarketData(symbol: string, assetClass: string): Promise<MarketData | undefined>;
+  upsertMarketData(data: InsertMarketData): Promise<MarketData>;
+  
+  // Risk Management operations
+  getUserRiskAlerts(userId: string): Promise<RiskAlert[]>;
+  createRiskAlert(alert: InsertRiskAlert): Promise<RiskAlert>;
+  markRiskAlertResolved(id: string): Promise<void>;
+  
+  // Advanced Analytics operations
+  getUserScreeningResults(userId: string): Promise<ScreeningResult[]>;
+  createScreeningResult(result: InsertScreeningResult): Promise<ScreeningResult>;
+  
+  // Options Data operations
+  getOptionsChain(symbol: string, expiration?: Date): Promise<OptionsData[]>;
+  upsertOptionsData(data: InsertOptionsData): Promise<OptionsData>;
+}
+
+export class DatabaseStorage implements IStorage {
+  // User operations
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: any): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  // Portfolio operations
+  async getUserPortfolios(userId: string): Promise<Portfolio[]> {
+    return await db.select().from(portfolios).where(eq(portfolios.userId, userId));
+  }
+
+  async getDefaultPortfolio(userId: string): Promise<Portfolio | undefined> {
+    const [portfolio] = await db
+      .select()
+      .from(portfolios)
+      .where(and(eq(portfolios.userId, userId), eq(portfolios.isDefault, true)));
+    return portfolio;
+  }
+
+  async createPortfolio(portfolio: any): Promise<Portfolio> {
+    const [newPortfolio] = await db.insert(portfolios).values(portfolio).returning();
+    return newPortfolio;
+  }
+
+  async updatePortfolio(id: string, updates: Partial<Portfolio>): Promise<Portfolio> {
+    const [portfolio] = await db
+      .update(portfolios)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(portfolios.id, id))
+      .returning();
+    return portfolio;
+  }
+
+  // Position operations
+  async getPortfolioPositions(portfolioId: string): Promise<Position[]> {
+    return await db.select().from(positions).where(eq(positions.portfolioId, portfolioId));
+  }
+
+  async getPosition(portfolioId: string, symbol: string): Promise<Position | undefined> {
+    const [position] = await db
+      .select()
+      .from(positions)
+      .where(and(eq(positions.portfolioId, portfolioId), eq(positions.symbol, symbol)));
+    return position;
+  }
+
+  async upsertPosition(position: any): Promise<Position> {
+    const [existingPosition] = await db
+      .select()
+      .from(positions)
+      .where(and(eq(positions.portfolioId, position.portfolioId), eq(positions.symbol, position.symbol)));
+
+    if (existingPosition) {
+      const [updatedPosition] = await db
+        .update(positions)
+        .set({ ...position, updatedAt: new Date() })
+        .where(eq(positions.id, existingPosition.id))
+        .returning();
+      return updatedPosition;
+    } else {
+      const [newPosition] = await db.insert(positions).values(position).returning();
+      return newPosition;
+    }
+  }
+
+  async deletePosition(id: string): Promise<void> {
+    await db.delete(positions).where(eq(positions.id, id));
+  }
+
+  // Order operations
+  async getPortfolioOrders(portfolioId: string): Promise<Order[]> {
+    return await db
+      .select()
+      .from(orders)
+      .where(eq(orders.portfolioId, portfolioId))
+      .orderBy(desc(orders.createdAt));
+  }
+
+  async createOrder(order: any): Promise<Order> {
+    const [newOrder] = await db.insert(orders).values(order).returning();
+    return newOrder;
+  }
+
+  async updateOrder(id: string, updates: Partial<Order>): Promise<Order> {
+    const [order] = await db
+      .update(orders)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(orders.id, id))
+      .returning();
+    return order;
+  }
+
+  async getPendingOrders(portfolioId: string): Promise<Order[]> {
+    return await db
+      .select()
+      .from(orders)
+      .where(and(eq(orders.portfolioId, portfolioId), eq(orders.status, "pending")));
+  }
+
+  // AI Signal operations
+  async getActiveAISignals(): Promise<AISignal[]> {
+    return await db
+      .select()
+      .from(aiSignals)
+      .where(eq(aiSignals.isActive, true))
+      .orderBy(desc(aiSignals.createdAt));
+  }
+
+  async getAISignalsBySymbol(symbol: string): Promise<AISignal[]> {
+    return await db
+      .select()
+      .from(aiSignals)
+      .where(and(eq(aiSignals.symbol, symbol), eq(aiSignals.isActive, true)))
+      .orderBy(desc(aiSignals.createdAt));
+  }
+
+  async createAISignal(signal: InsertAISignal): Promise<AISignal> {
+    const [newSignal] = await db.insert(aiSignals).values(signal).returning();
+    return newSignal;
+  }
+
+  async deactivateAISignal(id: string): Promise<void> {
+    await db.update(aiSignals).set({ isActive: false }).where(eq(aiSignals.id, id));
+  }
+
+  // Watchlist operations
+  async getUserWatchlists(userId: string): Promise<Watchlist[]> {
+    return await db.select().from(watchlists).where(eq(watchlists.userId, userId));
+  }
+
+  async createWatchlist(watchlist: any): Promise<Watchlist> {
+    const [newWatchlist] = await db.insert(watchlists).values(watchlist).returning();
+    return newWatchlist;
+  }
+
+  async updateWatchlist(id: string, updates: Partial<Watchlist>): Promise<Watchlist> {
+    const [watchlist] = await db
+      .update(watchlists)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(watchlists.id, id))
+      .returning();
+    return watchlist;
+  }
+
+  async deleteWatchlist(id: string): Promise<void> {
+    await db.delete(watchlists).where(eq(watchlists.id, id));
+  }
+
+  // News operations
+  async getLatestNews(limit: number = 50): Promise<NewsArticle[]> {
+    return await db
+      .select()
+      .from(newsArticles)
+      .orderBy(desc(newsArticles.publishedAt))
+      .limit(limit);
+  }
+
+  async getNewsBySymbol(symbol: string, limit: number = 20): Promise<NewsArticle[]> {
+    return await db
+      .select()
+      .from(newsArticles)
+      .where(sql`${symbol} = ANY(${newsArticles.symbols})`)
+      .orderBy(desc(newsArticles.publishedAt))
+      .limit(limit);
+  }
+
+  async createNewsArticle(article: any): Promise<NewsArticle> {
+    const [newArticle] = await db.insert(newsArticles).values(article).returning();
+    return newArticle;
+  }
+
+  // Trading Strategy operations
+  async getUserStrategies(userId: string): Promise<TradingStrategy[]> {
+    return await db.select().from(tradingStrategies).where(eq(tradingStrategies.userId, userId));
+  }
+
+  async createStrategy(strategy: any): Promise<TradingStrategy> {
+    const [newStrategy] = await db.insert(tradingStrategies).values(strategy).returning();
+    return newStrategy;
+  }
+
+  async updateStrategy(id: string, updates: Partial<TradingStrategy>): Promise<TradingStrategy> {
+    const [strategy] = await db
+      .update(tradingStrategies)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(tradingStrategies.id, id))
+      .returning();
+    return strategy;
+  }
+
+  async deleteStrategy(id: string): Promise<void> {
+    await db.delete(tradingStrategies).where(eq(tradingStrategies.id, id));
+  }
+
+  // Backtest operations
+  async getStrategyBacktests(strategyId: string): Promise<BacktestResult[]> {
+    return await db
+      .select()
+      .from(backtestResults)
+      .where(eq(backtestResults.strategyId, strategyId))
+      .orderBy(desc(backtestResults.createdAt));
+  }
+
+  async createBacktestResult(result: any): Promise<BacktestResult> {
+    const [newResult] = await db.insert(backtestResults).values(result).returning();
+    return newResult;
+  }
+
+  // Community operations
+  async getCommunityPosts(limit: number = 50): Promise<(CommunityPost & { user: Pick<User, 'firstName' | 'lastName' | 'profileImageUrl'> })[]> {
+    const posts = await db
+      .select({
+        id: communityPosts.id,
+        userId: communityPosts.userId,
+        title: communityPosts.title,
+        content: communityPosts.content,
+        likes: communityPosts.likes,
+        replies: communityPosts.replies,
+        shares: communityPosts.shares,
+        tags: communityPosts.tags,
+        createdAt: communityPosts.createdAt,
+        updatedAt: communityPosts.updatedAt,
+        user: {
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+        },
+      })
+      .from(communityPosts)
+      .leftJoin(users, eq(communityPosts.userId, users.id))
+      .orderBy(desc(communityPosts.createdAt))
+      .limit(limit);
+
+    return posts.map(post => ({
+      ...post,
+      user: post.user || { firstName: null, lastName: null, profileImageUrl: null }
+    })) as any;
+  }
+
+  async createCommunityPost(post: any): Promise<CommunityPost> {
+    const [newPost] = await db.insert(communityPosts).values(post).returning();
+    return newPost;
+  }
+
+  async updateCommunityPost(id: string, updates: Partial<CommunityPost>): Promise<CommunityPost> {
+    const [post] = await db
+      .update(communityPosts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(communityPosts.id, id))
+      .returning();
+    return post;
+  }
+
+  async deleteCommunityPost(id: string): Promise<void> {
+    await db.delete(communityPosts).where(eq(communityPosts.id, id));
+  }
+
+  // Trading Bot operations
+  async getUserTradingBots(userId: string): Promise<TradingBot[]> {
+    return await db.select().from(tradingBots).where(eq(tradingBots.userId, userId));
+  }
+
+  async getTradingBot(id: string): Promise<TradingBot | undefined> {
+    const [bot] = await db.select().from(tradingBots).where(eq(tradingBots.id, id));
+    return bot;
+  }
+
+  async createTradingBot(bot: InsertTradingBot): Promise<TradingBot> {
+    const [newBot] = await db.insert(tradingBots).values(bot).returning();
+    return newBot;
+  }
+
+  async updateTradingBot(id: string, updates: Partial<TradingBot>): Promise<TradingBot> {
+    const [updatedBot] = await db
+      .update(tradingBots)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(tradingBots.id, id))
+      .returning();
+    return updatedBot;
+  }
+
+  async deleteTradingBot(id: string): Promise<void> {
+    await db.delete(tradingBots).where(eq(tradingBots.id, id));
+  }
+
+  // Market Data operations
+  async getMarketData(symbol: string, assetClass: string): Promise<MarketData | undefined> {
+    const [data] = await db
+      .select()
+      .from(marketData)
+      .where(and(eq(marketData.symbol, symbol), eq(marketData.assetClass, assetClass)))
+      .orderBy(desc(marketData.timestamp))
+      .limit(1);
+    return data;
+  }
+
+  async upsertMarketData(data: InsertMarketData): Promise<MarketData> {
+    const [result] = await db
+      .insert(marketData)
+      .values(data)
+      .onConflictDoUpdate({
+        target: [marketData.symbol, marketData.assetClass],
+        set: {
+          price: data.price,
+          volume: data.volume,
+          change: data.change,
+          changePercent: data.changePercent,
+          high: data.high,
+          low: data.low,
+          open: data.open,
+          close: data.close,
+          marketCap: data.marketCap,
+          technicalIndicators: data.technicalIndicators,
+          timestamp: data.timestamp,
+          createdAt: new Date()
+        }
+      })
+      .returning();
+    return result;
+  }
+
+  // Risk Management operations
+  async getUserRiskAlerts(userId: string): Promise<RiskAlert[]> {
+    return await db
+      .select()
+      .from(riskAlerts)
+      .where(eq(riskAlerts.userId, userId))
+      .orderBy(desc(riskAlerts.createdAt));
+  }
+
+  async createRiskAlert(alert: InsertRiskAlert): Promise<RiskAlert> {
+    const [newAlert] = await db.insert(riskAlerts).values(alert).returning();
+    return newAlert;
+  }
+
+  async markRiskAlertResolved(id: string): Promise<void> {
+    await db
+      .update(riskAlerts)
+      .set({ isResolved: true, resolvedAt: new Date() })
+      .where(eq(riskAlerts.id, id));
+  }
+
+  // Advanced Analytics operations
+  async getUserScreeningResults(userId: string): Promise<ScreeningResult[]> {
+    return await db
+      .select()
+      .from(screeningResults)
+      .where(eq(screeningResults.userId, userId))
+      .orderBy(desc(screeningResults.createdAt));
+  }
+
+  async createScreeningResult(result: InsertScreeningResult): Promise<ScreeningResult> {
+    const [newResult] = await db.insert(screeningResults).values(result).returning();
+    return newResult;
+  }
+
+  // Options Data operations
+  async getOptionsChain(symbol: string, expiration?: Date): Promise<OptionsData[]> {
+    const whereCondition = expiration 
+      ? and(eq(optionsData.underlyingSymbol, symbol), eq(optionsData.expiration, expiration))
+      : eq(optionsData.underlyingSymbol, symbol);
+
+    return await db
+      .select()
+      .from(optionsData)
+      .where(whereCondition)
+      .orderBy(optionsData.strike, optionsData.optionType);
+  }
+
+  async upsertOptionsData(data: InsertOptionsData): Promise<OptionsData> {
+    const [result] = await db
+      .insert(optionsData)
+      .values(data)
+      .onConflictDoUpdate({
+        target: [optionsData.underlyingSymbol, optionsData.strike, optionsData.expiration, optionsData.optionType],
+        set: {
+          bid: data.bid,
+          ask: data.ask,
+          lastPrice: data.lastPrice,
+          volume: data.volume,
+          openInterest: data.openInterest,
+          impliedVolatility: data.impliedVolatility,
+          delta: data.delta,
+          gamma: data.gamma,
+          theta: data.theta,
+          vega: data.vega,
+          rho: data.rho,
+          timestamp: data.timestamp,
+          createdAt: new Date()
+        }
+      })
+      .returning();
+    return result;
+  }
+}
+
+export const storage = new DatabaseStorage();

@@ -1,0 +1,39 @@
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3498db" />
+      <stop offset="100%" stop-color="#9b59b6" />
+    </linearGradient>
+    <linearGradient id="chartGradient" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#2ecc71" />
+      <stop offset="100%" stop-color="#2ecc71" stop-opacity="0.3" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect x="0" y="0" width="100" height="100" rx="20" fill="url(#bgGradient)" />
+  
+  <!-- Circuit Board Pattern -->
+  <path d="M15 25 L35 25 M35 25 L35 45 M35 45 L55 45 M55 45 L55 65 M55 65 L75 65" 
+        stroke="rgba(255,255,255,0.3)" stroke-width="2" stroke-linecap="round" />
+  <circle cx="15" cy="25" r="3" fill="white" opacity="0.6" />
+  <circle cx="35" cy="25" r="3" fill="white" opacity="0.6" />
+  <circle cx="35" cy="45" r="3" fill="white" opacity="0.6" />
+  <circle cx="55" cy="45" r="3" fill="white" opacity="0.6" />
+  <circle cx="55" cy="65" r="3" fill="white" opacity="0.6" />
+  <circle cx="75" cy="65" r="3" fill="white" opacity="0.6" />
+  
+  <!-- Stock Chart -->
+  <polyline points="20,70 30,60 40,65 50,45 60,55 70,35 80,30" 
+            stroke="white" stroke-width="3" fill="none" stroke-linejoin="round" stroke-linecap="round" />
+  
+  <!-- Brain/AI symbol -->
+  <path d="M50 25 C60 25, 65 15, 60 10 C55 5, 45 5, 40 10 C35 15, 40 25, 50 25" 
+        stroke="white" stroke-width="2" fill="none" />
+  <path d="M40 10 C35 20, 30 15, 35 25" 
+        stroke="white" stroke-width="2" fill="none" />
+  <path d="M60 10 C65 20, 70 15, 65 25" 
+        stroke="white" stroke-width="2" fill="none" />
+  <circle cx="45" cy="18" r="2" fill="white" />
+  <circle cx="55" cy="18" r="2" fill="white" />
+</svg> 

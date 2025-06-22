@@ -1,0 +1,764 @@
+openapi: 3.0.3
+info:
+  title: RenX AI Trading Platform API
+  description: |
+    Comprehensive API specification for RenX AI Trading Platform
+    
+    ## Features
+    - Multi-tenant architecture with tenant isolation
+    - Role-based access control (RBAC)
+    - Real-time trading and market data
+    - AI-powered trading signals and predictions
+    - WebSocket support for live updates
+    
+    ## Authentication
+    All authenticated endpoints require a valid JWT token in the Authorization header:
+    ```
+    Authorization: Bearer <token>
+    ```
+    
+    ## Multi-Tenancy
+    All tenant-specific endpoints include tenant context in headers or request body.
+    
+  version: 1.0.0
+  contact:
+    name: RenX Development Team
+    url: https://github.com/renx/api
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000/api
+    description: Development server
+  - url: https://api.renx.trading/api
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+paths:
+  # Authentication Endpoints
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and return JWT tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tenantId
+                - email
+                - password
+              properties:
+                tenantId:
+                  type: string
+                  description: Tenant identifier
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: Register a new user (Admin only)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user
+      responses:
+        '200':
+          description: Current user information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # Tenant Management
+  /tenants:
+    get:
+      tags:
+        - Tenants
+      summary: Get all tenants
+      description: Super Admin only
+      responses:
+        '200':
+          description: List of tenants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tenant'
+    post:
+      tags:
+        - Tenants
+      summary: Create new tenant
+      description: Super Admin only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantCreate'
+      responses:
+        '201':
+          description: Tenant created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+
+  /tenants/{tenantId}:
+    get:
+      tags:
+        - Tenants
+      summary: Get tenant by ID
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Trading Endpoints
+  /trades:
+    get:
+      tags:
+        - Trading
+      summary: Get trade history
+      parameters:
+        - name: symbol
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Trade history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trades:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Trade'
+                  total:
+                    type: integer
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Trading
+      summary: Place new trade
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TradeOrder'
+      responses:
+        '201':
+          description: Trade placed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trade'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  # Watchlist Endpoints
+  /watchlist:
+    get:
+      tags:
+        - Watchlist
+      summary: Get user's watchlist
+      responses:
+        '200':
+          description: User's watchlist
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WatchlistItem'
+
+    post:
+      tags:
+        - Watchlist
+      summary: Add symbol to watchlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - symbol
+              properties:
+                symbol:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: Symbol added to watchlist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WatchlistItem'
+
+  /watchlist/{symbol}:
+    delete:
+      tags:
+        - Watchlist
+      summary: Remove symbol from watchlist
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Symbol removed from watchlist
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Stock Data Endpoints
+  /stock/quote/{symbol}:
+    get:
+      tags:
+        - Stock Data
+      summary: Get stock quote
+      security: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Stock quote data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockQuote'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /stock/search:
+    get:
+      tags:
+        - Stock Data
+      summary: Search stocks
+      security: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    symbol:
+                      type: string
+                    name:
+                      type: string
+                    exchange:
+                      type: string
+
+  # Order Book Endpoints
+  /orderbook/{symbol}:
+    get:
+      tags:
+        - Order Book
+      summary: Get order book for symbol
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order book data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderBook'
+
+  # Pricing Endpoints
+  /pricing/plans:
+    get:
+      tags:
+        - Pricing
+      summary: Get pricing plans
+      security: []
+      responses:
+        '200':
+          description: Available pricing plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PricingPlan'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Authentication Schemas
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+            expiresIn:
+              type: integer
+
+    TokenResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+            expiresIn:
+              type: integer
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, admin, user]
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        lastLogin:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UserRegistration:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [admin, user]
+          default: user
+
+    # Tenant Schemas
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, suspended, inactive]
+        subscriptionPlan:
+          type: string
+        settings:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TenantCreate:
+      type: object
+      required:
+        - name
+        - subscriptionPlan
+      properties:
+        name:
+          type: string
+        subscriptionPlan:
+          type: string
+        adminEmail:
+          type: string
+          format: email
+        settings:
+          type: object
+
+    # Trading Schemas
+    Trade:
+      type: object
+      properties:
+        id:
+          type: string
+        symbol:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        quantity:
+          type: number
+        price:
+          type: number
+        orderType:
+          type: string
+          enum: [market, limit]
+        status:
+          type: string
+          enum: [pending, filled, cancelled, rejected]
+        createdAt:
+          type: string
+          format: date-time
+        filledAt:
+          type: string
+          format: date-time
+
+    TradeOrder:
+      type: object
+      required:
+        - symbol
+        - side
+        - quantity
+        - orderType
+      properties:
+        symbol:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        quantity:
+          type: number
+        price:
+          type: number
+        orderType:
+          type: string
+          enum: [market, limit]
+        timeInForce:
+          type: string
+          enum: [day, gtc, ioc, fok]
+          default: day
+
+    # Watchlist Schemas
+    WatchlistItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        symbol:
+          type: string
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    # Stock Data Schemas
+    StockQuote:
+      type: object
+      properties:
+        symbol:
+          type: string
+        price:
+          type: number
+        change:
+          type: number
+        changePercent:
+          type: number
+        volume:
+          type: number
+        marketCap:
+          type: number
+        pe:
+          type: number
+        high52Week:
+          type: number
+        low52Week:
+          type: number
+        avgVolume:
+          type: number
+        lastUpdated:
+          type: string
+          format: date-time
+
+    # Order Book Schema
+    OrderBook:
+      type: object
+      properties:
+        symbol:
+          type: string
+        bids:
+          type: array
+          items:
+            type: object
+            properties:
+              price:
+                type: number
+              size:
+                type: number
+        asks:
+          type: array
+          items:
+            type: object
+            properties:
+              price:
+                type: number
+              size:
+                type: number
+        lastUpdated:
+          type: string
+          format: date-time
+
+    # Pricing Schema
+    PricingPlan:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        currency:
+          type: string
+          default: USD
+        features:
+          type: array
+          items:
+            type: string
+        limits:
+          type: object
+
+    # Utility Schemas
+    Pagination:
+      type: object
+      properties:
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+        hasMore:
+          type: boolean
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          default: false
+        message:
+          type: string
+        error:
+          type: string
+        code:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error' 

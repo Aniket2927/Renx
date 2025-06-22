@@ -1,0 +1,274 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+⚠️ Redis not configured, using memory cache
+{"level":"WARN","timestamp":"2025-06-22T05:33:09.854Z","logger":"kafkajs","message":"KafkaJS v2.0.0 switched default partitioner. To retain the same partitioning behavior as in previous versions, create the producer with the option \"createPartitioner: Partitioners.LegacyPartitioner\". See the migration guide at https://kafka.js.org/docs/migration-guide-v2.0.0#producer-new-default-partitioner for details. Silence this warning by setting the environment variable \"KAFKAJS_NO_PARTITIONER_WARNING=1\""}
+{"level":"WARN","timestamp":"2025-06-22T05:33:09.854Z","logger":"kafkajs","message":"[Producer] Limiting retries for the idempotent producer may invalidate EoS guarantees"}
+Failed to create audit tables: error: database "renx_db" does not exist
+    at /Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async AuditService.createTables (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/auditService.ts:132:7)
+    at async AuditService.initialize (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/auditService.ts:70:7) {
+  length: 92,
+  severity: 'FATAL',
+  code: '3D000',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postinit.c',
+  line: '948',
+  routine: 'InitPostgres'
+}
+❌ Failed to initialize audit service: error: database "renx_db" does not exist
+    at /Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async AuditService.createTables (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/auditService.ts:132:7)
+    at async AuditService.initialize (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/auditService.ts:70:7) {
+  length: 92,
+  severity: 'FATAL',
+  code: '3D000',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postinit.c',
+  line: '948',
+  routine: 'InitPostgres'
+}
+Failed to create notification tables: error: database "renx_db" does not exist
+    at /Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async NotificationService.createTables (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/notificationService.ts:165:7)
+    at async NotificationService.initialize (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/notificationService.ts:116:7) {
+  length: 92,
+  severity: 'FATAL',
+  code: '3D000',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postinit.c',
+  line: '948',
+  routine: 'InitPostgres'
+}
+❌ Failed to initialize notification service: error: database "renx_db" does not exist
+    at /Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async NotificationService.createTables (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/notificationService.ts:165:7)
+    at async NotificationService.initialize (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/notificationService.ts:116:7) {
+  length: 92,
+  severity: 'FATAL',
+  code: '3D000',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postinit.c',
+  line: '948',
+  routine: 'InitPostgres'
+}
+Error initializing database connection: error: database "renx_db" does not exist
+    at /Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async DatabaseManager.init (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/db.ts:79:7) {
+  length: 92,
+  severity: 'FATAL',
+  code: '3D000',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postinit.c',
+  line: '948',
+  routine: 'InitPostgres'
+}
+Database not available - running in development mode without database
+Failed to create pricing tables: error: database "renx_db" does not exist
+    at /Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PricingService.createTables (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/pricingService.ts:133:7)
+    at async PricingService.initialize (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/pricingService.ts:70:7) {
+  length: 92,
+  severity: 'FATAL',
+  code: '3D000',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postinit.c',
+  line: '948',
+  routine: 'InitPostgres'
+}
+❌ Failed to initialize pricing service: error: database "renx_db" does not exist
+    at /Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PricingService.createTables (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/pricingService.ts:133:7)
+    at async PricingService.initialize (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/pricingService.ts:70:7) {
+  length: 92,
+  severity: 'FATAL',
+  code: '3D000',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postinit.c',
+  line: '948',
+  routine: 'InitPostgres'
+}
+11:03:10 AM [express] WebSocket service initialized
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.335Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.335Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":0,"retryTime":82}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.335Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.336Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":0,"retryTime":83}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.420Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.420Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":1,"retryTime":170}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.420Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.421Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":1,"retryTime":150}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.573Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.573Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":2,"retryTime":270}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.592Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.592Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":2,"retryTime":330}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.844Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.845Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":3,"retryTime":630}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.925Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:10.925Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":3,"retryTime":540}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:11.466Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:11.467Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":4,"retryTime":1256}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:11.476Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:11.476Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":4,"retryTime":1296}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:12.725Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:12.726Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":5,"retryTime":2452}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:12.774Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:12.775Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":5,"retryTime":2656}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:15.179Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:15.180Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":6,"retryTime":5826}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:15.432Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:15.433Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":6,"retryTime":4484}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:19.927Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:19.928Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":7,"retryTime":7334}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:21.019Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:21.019Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":7,"retryTime":12920}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:27.267Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T05:33:27.268Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":8,"retryTime":12314}
+Kafka connection error: KafkaJSNonRetriableError
+  Caused by: KafkaJSConnectionError: Connection error: 
+    at Socket.onError (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/kafkajs/src/network/connection.js:210:23)
+    ... 3 lines matching cause stack trace ...
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  name: 'KafkaJSNumberOfRetriesExceeded',
+  retriable: false,
+  helpUrl: undefined,
+  retryCount: 8,
+  retryTime: 12314,
+  [cause]: KafkaJSConnectionError: Connection error: 
+      at Socket.onError (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/kafkajs/src/network/connection.js:210:23)
+      at Socket.emit (node:events:524:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    retriable: true,
+    helpUrl: undefined,
+    broker: 'localhost:9092',
+    code: 'ECONNREFUSED',
+    [cause]: undefined
+  }
+}
+11:03:27 AM [express] Warning: Message service (Kafka) connection failed - continuing without messaging
+Kafka connection error: KafkaJSNonRetriableError
+  Caused by: KafkaJSConnectionError: Connection error: 
+    at Socket.onError (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/kafkajs/src/network/connection.js:210:23)
+    ... 3 lines matching cause stack trace ...
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  name: 'KafkaJSNumberOfRetriesExceeded',
+  retriable: false,
+  helpUrl: undefined,
+  retryCount: 8,
+  retryTime: 12314,
+  [cause]: KafkaJSConnectionError: Connection error: 
+      at Socket.onError (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/kafkajs/src/network/connection.js:210:23)
+      at Socket.emit (node:events:524:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    retriable: true,
+    helpUrl: undefined,
+    broker: 'localhost:9092',
+    code: 'ECONNREFUSED',
+    [cause]: undefined
+  }
+}
+11:03:27 AM [express] Cache service (Redis) connected
+11:03:27 AM [initializing] Notification service initialized:
+11:03:27 AM [initializing] Pricing service initialized:
+11:03:27 AM [initializing] Audit service initialized:
+node:events:502
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1912:16)
+    at listenInCluster (node:net:1969:12)
+    at Server.listen (node:net:2074:7)
+    at <anonymous> (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/index.ts:108:10)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1948:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+
+Node.js v22.12.0

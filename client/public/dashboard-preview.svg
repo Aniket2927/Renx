@@ -1,0 +1,108 @@
+<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2c3e50" />
+      <stop offset="100%" stop-color="#1a1a2e" />
+    </linearGradient>
+    <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3498db" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#3498db" stop-opacity="0.1" />
+    </linearGradient>
+    <linearGradient id="barGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2ecc71" />
+      <stop offset="100%" stop-color="#27ae60" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="600" fill="url(#bgGradient)" rx="15" />
+  
+  <!-- Header -->
+  <rect x="0" y="0" width="800" height="60" fill="#1a1a2e" rx="15" ry="15" />
+  <circle cx="40" cy="30" r="20" fill="#3498db" />
+  <text x="70" y="38" font-family="Arial" font-size="22" fill="white" font-weight="bold">RenX Dashboard</text>
+  
+  <!-- Sidebar -->
+  <rect x="0" y="60" width="200" height="540" fill="#1a1a2e" />
+  
+  <!-- Main Content Area -->
+  <rect x="210" y="70" width="580" height="220" fill="#2c3e50" rx="10" />
+  
+  <!-- Chart Lines -->
+  <polyline points="230,200 280,180 330,190 380,150 430,160 480,120 530,140 580,100 630,120 680,80 730,90" 
+          stroke="#3498db" stroke-width="3" fill="none" filter="url(#glow)" />
+  
+  <!-- Chart Area -->
+  <path d="M230,200 L280,180 L330,190 L380,150 L430,160 L480,120 L530,140 L580,100 L630,120 L680,80 L730,90 L730,270 L230,270 Z" 
+        fill="url(#chartGradient)" opacity="0.5" />
+  
+  <!-- Chart Grid -->
+  <line x1="230" y1="150" x2="730" y2="150" stroke="#34495e" stroke-width="1" stroke-dasharray="5,5" />
+  <line x1="230" y1="200" x2="730" y2="200" stroke="#34495e" stroke-width="1" stroke-dasharray="5,5" />
+  <line x1="230" y1="250" x2="730" y2="250" stroke="#34495e" stroke-width="1" stroke-dasharray="5,5" />
+  
+  <!-- Statistics Cards -->
+  <rect x="210" y="300" width="180" height="120" fill="#2c3e50" rx="10" />
+  <circle cx="250" cy="340" r="30" fill="#3498db" opacity="0.8" />
+  <text x="300" y="330" font-family="Arial" font-size="16" fill="white">Total Balance</text>
+  <text x="300" y="360" font-family="Arial" font-size="22" fill="white" font-weight="bold">$24,156.78</text>
+  
+  <rect x="410" y="300" width="180" height="120" fill="#2c3e50" rx="10" />
+  <circle cx="450" cy="340" r="30" fill="#2ecc71" opacity="0.8" />
+  <text x="500" y="330" font-family="Arial" font-size="16" fill="white">Profit Today</text>
+  <text x="500" y="360" font-family="Arial" font-size="22" fill="white" font-weight="bold">+$1,245.30</text>
+  
+  <rect x="610" y="300" width="180" height="120" fill="#2c3e50" rx="10" />
+  <circle cx="650" cy="340" r="30" fill="#f39c12" opacity="0.8" />
+  <text x="700" y="330" font-family="Arial" font-size="16" fill="white">Active Trades</text>
+  <text x="700" y="360" font-family="Arial" font-size="22" fill="white" font-weight="bold">7</text>
+  
+  <!-- Bottom Table -->
+  <rect x="210" y="430" width="580" height="160" fill="#2c3e50" rx="10" />
+  <rect x="220" y="440" width="560" height="40" fill="#34495e" rx="5" />
+  <text x="240" y="465" font-family="Arial" font-size="14" fill="#bdc3c7">Asset</text>
+  <text x="380" y="465" font-family="Arial" font-size="14" fill="#bdc3c7">Price</text>
+  <text x="520" y="465" font-family="Arial" font-size="14" fill="#bdc3c7">Change</text>
+  <text x="660" y="465" font-family="Arial" font-size="14" fill="#bdc3c7">Volume</text>
+  
+  <!-- Table Rows -->
+  <text x="240" y="505" font-family="Arial" font-size="14" fill="white">BTC/USDT</text>
+  <text x="380" y="505" font-family="Arial" font-size="14" fill="white">$57,842.13</text>
+  <text x="520" y="505" font-family="Arial" font-size="14" fill="#2ecc71">+2.4%</text>
+  <text x="660" y="505" font-family="Arial" font-size="14" fill="white">$24.5B</text>
+  
+  <text x="240" y="545" font-family="Arial" font-size="14" fill="white">ETH/USDT</text>
+  <text x="380" y="545" font-family="Arial" font-size="14" fill="white">$2,456.78</text>
+  <text x="520" y="545" font-family="Arial" font-size="14" fill="#e74c3c">-1.2%</text>
+  <text x="660" y="545" font-family="Arial" font-size="14" fill="white">$12.7B</text>
+  
+  <text x="240" y="585" font-family="Arial" font-size="14" fill="white">XRP/USDT</text>
+  <text x="380" y="585" font-family="Arial" font-size="14" fill="white">$0.8932</text>
+  <text x="520" y="585" font-family="Arial" font-size="14" fill="#2ecc71">+5.6%</text>
+  <text x="660" y="585" font-family="Arial" font-size="14" fill="white">$4.2B</text>
+  
+  <!-- Sidebar Navigation -->
+  <rect x="20" y="100" width="160" height="40" fill="#3498db" rx="5" />
+  <text x="60" y="125" font-family="Arial" font-size="16" fill="white">Dashboard</text>
+  
+  <text x="60" y="175" font-family="Arial" font-size="16" fill="#bdc3c7">Markets</text>
+  <text x="60" y="225" font-family="Arial" font-size="16" fill="#bdc3c7">Portfolio</text>
+  <text x="60" y="275" font-family="Arial" font-size="16" fill="#bdc3c7">Trades</text>
+  <text x="60" y="325" font-family="Arial" font-size="16" fill="#bdc3c7">Wallet</text>
+  <text x="60" y="375" font-family="Arial" font-size="16" fill="#bdc3c7">Settings</text>
+  
+  <!-- Donut Chart in Sidebar -->
+  <circle cx="100" cy="450" r="50" fill="none" stroke="#34495e" stroke-width="10" />
+  <path d="M100,400 A50,50 0 0,1 145,435" fill="none" stroke="#3498db" stroke-width="10" />
+  <path d="M145,435 A50,50 0 0,1 100,500" fill="none" stroke="#2ecc71" stroke-width="10" />
+  <path d="M100,500 A50,50 0 0,1 55,435" fill="none" stroke="#f39c12" stroke-width="10" />
+  <circle cx="100" cy="450" r="25" fill="#1a1a2e" />
+  <text x="100" y="455" font-family="Arial" font-size="14" fill="white" text-anchor="middle">Asset</text>
+</svg> 

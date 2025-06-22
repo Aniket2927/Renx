@@ -1,0 +1,39 @@
+# Python AI/ML service Dockerfile
+FROM python:3.9-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY ai-backend/requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY ai-backend/ .
+
+# Download NLTK data
+RUN python download_nltk_data.py
+
+# Create non-root user
+RUN adduser --disabled-password --gecos '' renx
+RUN chown -R renx:renx /app
+USER renx
+
+# Expose port
+EXPOSE 8181
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8181/health || exit 1
+
+# Start the application
+CMD ["python", "main.py"] 

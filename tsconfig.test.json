@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "target": "ES2020",
+    "moduleResolution": "node",
+    "allowImportingTsExtensions": false,
+    "types": ["node", "jest", "@jest/globals"]
+  },
+  "include": [
+    "server/**/*.test.ts",
+    "server/**/*.spec.ts",
+    "client/src/**/*.test.ts",
+    "client/src/**/*.test.tsx",
+    "client/src/**/*.spec.ts",
+    "client/src/**/*.spec.tsx"
+  ],
+  "exclude": ["node_modules", "dist", "build"]
+} 

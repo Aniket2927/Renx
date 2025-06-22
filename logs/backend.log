@@ -1,0 +1,203 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+⚠️ Redis not configured, using memory cache
+{"level":"WARN","timestamp":"2025-06-22T07:03:17.279Z","logger":"kafkajs","message":"KafkaJS v2.0.0 switched default partitioner. To retain the same partitioning behavior as in previous versions, create the producer with the option \"createPartitioner: Partitioners.LegacyPartitioner\". See the migration guide at https://kafka.js.org/docs/migration-guide-v2.0.0#producer-new-default-partitioner for details. Silence this warning by setting the environment variable \"KAFKAJS_NO_PARTITIONER_WARNING=1\""}
+{"level":"WARN","timestamp":"2025-06-22T07:03:17.279Z","logger":"kafkajs","message":"[Producer] Limiting retries for the idempotent producer may invalidate EoS guarantees"}
+12:33:17 PM [express] WebSocket service initialized
+{"level":"ERROR","timestamp":"2025-06-22T07:03:17.376Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:17.377Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":0,"retryTime":117}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:17.377Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:17.378Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":0,"retryTime":91}
+Database connection established successfully
+Refreshed tenant schema cache with 1 tenants
+⚠️ Email configuration not found, email notifications will be disabled
+❌ Failed to initialize notification service: ReferenceError: __dirname is not defined
+    at NotificationService.loadEmailTemplates (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/notificationService.ts:205:35)
+    at NotificationService.initialize (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/services/notificationService.ts:118:18)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+✅ Audit service initialized successfully
+✅ Pricing service initialized successfully
+{"level":"ERROR","timestamp":"2025-06-22T07:03:17.475Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:17.476Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":1,"retryTime":158}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:17.496Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:17.497Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":1,"retryTime":240}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:17.639Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:17.639Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":2,"retryTime":360}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:17.739Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:17.740Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":2,"retryTime":506}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:18.001Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:18.002Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":3,"retryTime":792}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:18.248Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:18.248Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":3,"retryTime":982}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:18.794Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:18.795Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":4,"retryTime":1288}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:19.233Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:19.233Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":4,"retryTime":1884}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:20.084Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:20.084Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":5,"retryTime":2408}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:21.120Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:21.120Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":5,"retryTime":4066}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:22.496Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:22.496Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":6,"retryTime":4874}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:25.188Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:25.188Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":6,"retryTime":9050}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:27.374Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:27.375Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":7,"retryTime":9538}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:34.246Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:34.248Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":7,"retryTime":17228}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:36.916Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:36.917Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":8,"retryTime":19554}
+Kafka connection error: KafkaJSNonRetriableError
+  Caused by: KafkaJSConnectionError: Connection error: 
+    at Socket.onError (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/kafkajs/src/network/connection.js:210:23)
+    ... 3 lines matching cause stack trace ...
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  name: 'KafkaJSNumberOfRetriesExceeded',
+  retriable: false,
+  helpUrl: undefined,
+  retryCount: 8,
+  retryTime: 19554,
+  [cause]: KafkaJSConnectionError: Connection error: 
+      at Socket.onError (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/kafkajs/src/network/connection.js:210:23)
+      at Socket.emit (node:events:524:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    retriable: true,
+    helpUrl: undefined,
+    broker: 'localhost:9092',
+    code: 'ECONNREFUSED',
+    [cause]: undefined
+  }
+}
+12:33:36 PM [express] Warning: Message service (Kafka) connection failed - continuing without messaging
+Kafka connection error: KafkaJSNonRetriableError
+  Caused by: KafkaJSConnectionError: Connection error: 
+    at Socket.onError (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/kafkajs/src/network/connection.js:210:23)
+    ... 3 lines matching cause stack trace ...
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  name: 'KafkaJSNumberOfRetriesExceeded',
+  retriable: false,
+  helpUrl: undefined,
+  retryCount: 8,
+  retryTime: 19554,
+  [cause]: KafkaJSConnectionError: Connection error: 
+      at Socket.onError (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/node_modules/kafkajs/src/network/connection.js:210:23)
+      at Socket.emit (node:events:524:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    retriable: true,
+    helpUrl: undefined,
+    broker: 'localhost:9092',
+    code: 'ECONNREFUSED',
+    [cause]: undefined
+  }
+}
+12:33:36 PM [express] Cache service (Redis) connected
+12:33:36 PM [initializing] Notification service initialized:
+12:33:36 PM [healthy] Pricing service initialized:
+12:33:36 PM [healthy] Audit service initialized:
+12:33:36 PM [express] serving on port 3344
+12:33:40 PM [express] GET /api/ai/health 200 in 19ms :: {"status":"healthy","backend":"python-ml","ti…
+Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+{"level":"ERROR","timestamp":"2025-06-22T07:03:51.480Z","logger":"kafkajs","message":"[Connection] Connection error: ","broker":"localhost:9092","clientId":"renx-service","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1128:18)\n    at afterConnectMultiple (node:net:1693:7)"}
+{"level":"ERROR","timestamp":"2025-06-22T07:03:51.480Z","logger":"kafkajs","message":"[BrokerPool] Failed to connect to seed broker, trying another broker from the list: Connection error: ","retryCount":8,"retryTime":28126}
+12:33:53 PM [express] GET /api/portfolio/summary 401 in 1ms :: {"success":false,"error":{"code":"UNAU…
+12:33:53 PM [express] GET /api/tenants/accessible 404 in 4ms
+12:33:53 PM [express] GET /api/ai/signals/latest 401 in 0ms :: {"success":false,"error":{"code":"UNAU…
+12:33:53 PM [express] GET /api/market/indices 200 in 0ms :: [{"symbol":"SPY","price":423.15,"change":…
+12:33:55 PM [express] GET /api/auth/user 200 in 41ms :: {"user":{"id":1,"username":"demo_user","email…
+12:33:55 PM [express] GET /api/portfolio/summary 401 in 0ms :: {"success":false,"error":{"code":"UNAU…
+12:33:55 PM [express] GET /api/ai/signals/latest 401 in 0ms :: {"success":false,"error":{"code":"UNAU…
+12:33:55 PM [express] GET /api/market/indices 304 in 0ms :: [{"symbol":"SPY","price":423.15,"change":…
+12:33:55 PM [express] GET /api/tenants/accessible 404 in 6ms
+12:33:55 PM [express] GET /api/auth/user 304 in 16ms :: {"user":{"id":1,"username":"demo_user","email…
+12:33:56 PM [express] GET /api/tenants/accessible 404 in 2ms
+📝 Flushed 3 audit log entries
+12:33:58 PM [express] GET /api/tenants/accessible 404 in 5ms
+12:34:02 PM [express] GET /api/tenants/accessible 404 in 2ms
+12:34:34 PM [express] GET /api/auth/user 304 in 86ms :: {"user":{"id":1,"username":"demo_user","email…
+📝 Flushed 1 audit log entries
+12:36:10 PM [express] GET /api/tenants/accessible 404 in 16ms
+12:36:10 PM [express] GET /api/auth/user 304 in 228ms :: {"user":{"id":1,"username":"demo_user","emai…
+12:36:11 PM [express] GET /api/tenants/accessible 404 in 3ms
+📝 Flushed 1 audit log entries
+12:36:13 PM [express] GET /api/tenants/accessible 404 in 3ms
+12:36:17 PM [express] GET /api/tenants/accessible 404 in 3ms
+12:36:17 PM [express] GET /api/auth/user 304 in 64ms :: {"user":{"id":1,"username":"demo_user","email…
+📝 Flushed 1 audit log entries
+Refreshed tenant schema cache with 1 tenants
+Refreshed tenant schema cache with 1 tenants
+12:46:54 PM [express] GET /api/auth/user 304 in 205ms :: {"user":{"id":1,"username":"demo_user","emai…
+12:46:54 PM [express] GET /api/portfolio/summary 401 in 1ms :: {"success":false,"error":{"code":"UNAU…
+12:46:54 PM [express] GET /api/ai/signals/latest 401 in 1ms :: {"success":false,"error":{"code":"UNAU…
+12:46:54 PM [express] GET /api/market/indices 304 in 1ms :: [{"symbol":"SPY","price":423.15,"change":…
+12:46:54 PM [express] GET /api/tenants/accessible 404 in 6ms
+12:46:54 PM [express] GET /api/auth/user 304 in 11ms :: {"user":{"id":1,"username":"demo_user","email…
+12:46:55 PM [express] GET /api/tenants/accessible 404 in 8ms
+12:46:57 PM [express] GET /api/tenants/accessible 404 in 2ms
+📝 Flushed 2 audit log entries
+12:47:01 PM [express] GET /api/tenants/accessible 404 in 9ms
+12:47:03 PM [express] GET /api/tenants/accessible 404 in 8ms
+12:47:03 PM [express] GET /api/auth/user 304 in 52ms :: {"user":{"id":1,"username":"demo_user","email…
+12:47:04 PM [express] GET /api/tenants/accessible 404 in 7ms
+12:47:06 PM [express] GET /api/tenants/accessible 404 in 2ms
+📝 Flushed 1 audit log entries
+12:47:10 PM [express] GET /api/tenants/accessible 404 in 10ms
+12:47:37 PM [express] GET /api/portfolio/summary 401 in 7ms :: {"success":false,"error":{"code":"UNAU…
+12:47:37 PM [express] GET /api/ai/signals/latest 401 in 0ms :: {"success":false,"error":{"code":"UNAU…
+12:47:37 PM [express] GET /api/market/indices 304 in 0ms :: [{"symbol":"SPY","price":423.15,"change":…
+12:47:37 PM [express] GET /api/tenants/accessible 404 in 13ms
+12:47:37 PM [express] GET /api/auth/user 304 in 106ms :: {"user":{"id":1,"username":"demo_user","emai…
+📝 Flushed 1 audit log entries
+12:47:38 PM [express] GET /api/tenants/accessible 404 in 11ms
+12:47:40 PM [express] GET /api/tenants/accessible 404 in 2ms
+12:47:44 PM [express] GET /api/tenants/accessible 404 in 8ms
+Refreshed tenant schema cache with 1 tenants
+Refreshed tenant schema cache with 1 tenants
+12:56:25 PM [express] GET /api/portfolio/summary 401 in 16ms :: {"success":false,"error":{"code":"UNA…
+12:56:25 PM [express] GET /api/ai/signals/latest 401 in 0ms :: {"success":false,"error":{"code":"UNAU…
+12:56:25 PM [express] GET /api/tenants/accessible 404 in 30ms
+12:56:25 PM [express] GET /api/market/indices 304 in 1ms :: [{"symbol":"SPY","price":423.15,"change":…
+12:56:25 PM [express] GET /api/auth/user 304 in 192ms :: {"user":{"id":1,"username":"demo_user","emai…
+12:56:26 PM [express] GET /api/tenants/accessible 404 in 3ms
+📝 Flushed 1 audit log entries
+12:56:33 PM [express] GET /api/tenants/accessible 404 in 21ms
+12:56:33 PM [express] GET /api/auth/user 304 in 49ms :: {"user":{"id":1,"username":"demo_user","email…
+📝 Flushed 1 audit log entries
+Refreshed tenant schema cache with 1 tenants
+1:03:14 PM [express] GET /api/portfolio/summary 401 in 41ms :: {"success":false,"error":{"code":"UNA…
+1:03:14 PM [express] GET /api/ai/signals/latest 401 in 1ms :: {"success":false,"error":{"code":"UNAU…
+1:03:14 PM [express] GET /api/market/indices 304 in 4ms :: [{"symbol":"SPY","price":423.15,"change":…
+1:03:14 PM [express] GET /api/tenants/accessible 404 in 26ms
+1:03:14 PM [express] GET /api/auth/user 304 in 136ms :: {"user":{"id":1,"username":"demo_user","emai…
+Refreshed tenant schema cache with 1 tenants
+📝 Flushed 1 audit log entries
+Error: ENOENT: no such file or directory, open '/Users/prashant/Documents/Renaissa/Products/RenX/RENX/client/index.html'
+    at async open (node:internal/fs/promises:638:25)
+    at async Object.readFile (node:internal/fs/promises:1238:14)
+    at async <anonymous> (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/vite.ts:61:22)
+Error: ENOENT: no such file or directory, open '/Users/prashant/Documents/Renaissa/Products/RenX/RENX/client/index.html'
+    at async open (node:internal/fs/promises:638:25)
+    at async Object.readFile (node:internal/fs/promises:1238:14)
+    at async <anonymous> (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/vite.ts:61:22)
+1:03:22 PM [express] GET /api/auth/user 304 in 22ms :: {"user":{"id":1,"username":"demo_user","email…
+Error: ENOENT: no such file or directory, open '/Users/prashant/Documents/Renaissa/Products/RenX/RENX/client/index.html'
+    at async open (node:internal/fs/promises:638:25)
+    at async Object.readFile (node:internal/fs/promises:1238:14)
+    at async <anonymous> (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/vite.ts:61:22)
+📝 Flushed 1 audit log entries
+Error: ENOENT: no such file or directory, open '/Users/prashant/Documents/Renaissa/Products/RenX/RENX/client/index.html'
+    at async open (node:internal/fs/promises:638:25)
+    at async Object.readFile (node:internal/fs/promises:1238:14)
+    at async <anonymous> (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/vite.ts:61:22)
+Error: ENOENT: no such file or directory, open '/Users/prashant/Documents/Renaissa/Products/RenX/RENX/client/index.html'
+    at async open (node:internal/fs/promises:638:25)
+    at async Object.readFile (node:internal/fs/promises:1238:14)
+    at async <anonymous> (/Users/prashant/Documents/Renaissa/Products/RenX/RENX/server/vite.ts:61:22)
+Refreshed tenant schema cache with 1 tenants
