@@ -9,5 +9,12 @@ module.exports = {
         modules: 'auto',
       },
     ],
+    [
+      '@babel/preset-react',
+      {
+        runtime: 'automatic',
+      },
+    ],
+    '@babel/preset-typescript',
   ],
 }; 

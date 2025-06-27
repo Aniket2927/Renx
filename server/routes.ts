@@ -22,6 +22,7 @@ import notificationRoutes from './routes/notifications';
 import pricingRoutes from './routes/pricing';
 import auditRoutes from './routes/audit';
 import marketDataRoutes from './routes/marketData';
+import tradingRoutes from './routes/trading';
 import { thresholdConfigManager } from './services/thresholdConfigService';
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1234,6 +1235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/pricing', pricingRoutes);
   app.use('/api/audit', auditRoutes);
   app.use('/api/market-data', marketDataRoutes);
+  app.use('/api/trading', tradingRoutes);
 
   // Stock Market Data API Routes
   app.get('/api/stock/price/:symbol', async (req, res) => {

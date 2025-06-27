@@ -1,0 +1,287 @@
+# Phase 4: Mobile App Build Pipeline - Kubernetes Configuration
+# RenX Neural Trading Platform - Mobile Deployment
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: renx-mobile-builder
+  namespace: renx-production
+  labels:
+    app: renx-mobile-builder
+    tier: mobile
+    version: v1.0.0
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: renx-mobile-builder
+  template:
+    metadata:
+      labels:
+        app: renx-mobile-builder
+        tier: mobile
+    spec:
+      containers:
+      - name: mobile-builder
+        image: expo/expo-cli:latest
+        ports:
+        - containerPort: 19000
+          name: metro
+        - containerPort: 19001
+          name: dev-tools
+        - containerPort: 19002
+          name: tunnel
+        env:
+        - name: EXPO_DEVTOOLS_LISTEN_ADDRESS
+          value: "0.0.0.0"
+        - name: REACT_NATIVE_PACKAGER_HOSTNAME
+          value: "0.0.0.0"
+        - name: EXPO_DEBUG
+          value: "true"
+        - name: NODE_ENV
+          value: "production"
+        volumeMounts:
+        - name: mobile-source
+          mountPath: /app
+        - name: node-modules
+          mountPath: /app/node_modules
+        - name: expo-cache
+          mountPath: /root/.expo
+        workingDir: /app
+        command: ["npm", "start"]
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 19000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 19000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: mobile-source
+        persistentVolumeClaim:
+          claimName: mobile-source-pvc
+      - name: node-modules
+        emptyDir: {}
+      - name: expo-cache
+        persistentVolumeClaim:
+          claimName: expo-cache-pvc
+
+---
+# Mobile Build Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: renx-mobile-service
+  namespace: renx-production
+  labels:
+    app: renx-mobile-builder
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 19000
+    targetPort: 19000
+    name: metro
+    protocol: TCP
+  - port: 19001
+    targetPort: 19001
+    name: dev-tools
+    protocol: TCP
+  - port: 19002
+    targetPort: 19002
+    name: tunnel
+    protocol: TCP
+  selector:
+    app: renx-mobile-builder
+
+---
+# Persistent Volume Claims
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mobile-source-pvc
+  namespace: renx-production
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: fast-ssd
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: expo-cache-pvc
+  namespace: renx-production
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: fast-ssd
+
+---
+# Mobile App Build Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: renx-mobile-build
+  namespace: renx-production
+  labels:
+    app: renx-mobile-build
+    tier: mobile
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: mobile-build
+        image: node:18-alpine
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: EXPO_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: expo-secrets
+              key: token
+        - name: APPLE_ID
+          valueFrom:
+            secretKeyRef:
+              name: app-store-secrets
+              key: apple-id
+        - name: APPLE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-store-secrets
+              key: apple-password
+        - name: GOOGLE_SERVICE_ACCOUNT
+          valueFrom:
+            secretKeyRef:
+              name: google-play-secrets
+              key: service-account
+        volumeMounts:
+        - name: mobile-source
+          mountPath: /app
+        - name: build-output
+          mountPath: /build
+        workingDir: /app
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Installing dependencies..."
+          npm ci --production
+          
+          echo "Building iOS app..."
+          npx eas build --platform ios --non-interactive
+          
+          echo "Building Android app..."
+          npx eas build --platform android --non-interactive
+          
+          echo "Copying build artifacts..."
+          cp -r build/* /build/
+          
+          echo "Build completed successfully!"
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+      volumes:
+      - name: mobile-source
+        persistentVolumeClaim:
+          claimName: mobile-source-pvc
+      - name: build-output
+        persistentVolumeClaim:
+          claimName: mobile-build-pvc
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mobile-build-pvc
+  namespace: renx-production
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd
+
+---
+# Secrets for App Store and Google Play
+apiVersion: v1
+kind: Secret
+metadata:
+  name: expo-secrets
+  namespace: renx-production
+type: Opaque
+data:
+  token: <base64-encoded-expo-token>
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-store-secrets
+  namespace: renx-production
+type: Opaque
+data:
+  apple-id: <base64-encoded-apple-id>
+  apple-password: <base64-encoded-apple-password>
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: google-play-secrets
+  namespace: renx-production
+type: Opaque
+data:
+  service-account: <base64-encoded-google-service-account>
+
+---
+# Horizontal Pod Autoscaler for Mobile Builder
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: renx-mobile-hpa
+  namespace: renx-production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: renx-mobile-builder
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80 

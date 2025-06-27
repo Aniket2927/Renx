@@ -1,50 +1,7 @@
-// Frontend test setup
+// Frontend-specific Jest setup for React component testing
 import '@testing-library/jest-dom';
-import { configure } from '@testing-library/react';
 
-// Configure React Testing Library
-configure({
-  testIdAttribute: 'data-testid',
-});
-
-// Mock IntersectionObserver
-global.IntersectionObserver = class IntersectionObserver {
-  constructor() {}
-  observe() { return null; }
-  disconnect() { return null; }
-  unobserve() { return null; }
-};
-
-// Mock ResizeObserver
-global.ResizeObserver = class ResizeObserver {
-  constructor() {}
-  observe() { return null; }
-  disconnect() { return null; }
-  unobserve() { return null; }
-};
-
-// Mock matchMedia
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: jest.fn().mockImplementation(query => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(), // deprecated
-    removeListener: jest.fn(), // deprecated
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
-
-// Mock scrollTo
-Object.defineProperty(window, 'scrollTo', {
-  writable: true,
-  value: jest.fn(),
-});
-
-// Mock localStorage
+// Mock localStorage for browser environment
 const localStorageMock = {
   getItem: jest.fn(),
   setItem: jest.fn(),
@@ -56,82 +13,80 @@ global.localStorage = localStorageMock;
 // Mock sessionStorage
 const sessionStorageMock = {
   getItem: jest.fn(),
-  setItem: jest.fn(), 
+  setItem: jest.fn(),
   removeItem: jest.fn(),
   clear: jest.fn(),
 };
 global.sessionStorage = sessionStorageMock;
 
-// Mock fetch
-global.fetch = jest.fn(() =>
-  Promise.resolve({
-    ok: true,
-    status: 200,
-    json: () => Promise.resolve({}),
-    text: () => Promise.resolve(''),
-  })
-);
+// Mock import.meta.env for Vite environment variables
+global.importMeta = {
+  env: {
+    VITE_API_URL: 'http://localhost:3344/api',
+    VITE_WS_URL: 'ws://localhost:3344',
+    MODE: 'test',
+    DEV: false,
+    PROD: false,
+  },
+};
+
+// Polyfill for import.meta
+Object.defineProperty(global, 'import', {
+  value: {
+    meta: global.importMeta,
+  },
+  writable: true,
+});
+
+// Mock fetch for API calls
+global.fetch = jest.fn();
 
 // Mock WebSocket
-global.WebSocket = class WebSocket {
-  constructor() {
-    this.readyState = WebSocket.CONNECTING;
-  }
-  static CONNECTING = 0;
-  static OPEN = 1;
-  static CLOSING = 2;
-  static CLOSED = 3;
-  
-  send = jest.fn();
-  close = jest.fn();
-  addEventListener = jest.fn();
-  removeEventListener = jest.fn();
-};
-
-// Mock Chart libraries
-jest.mock('react-apexcharts', () => ({
-  __esModule: true,
-  default: ({ options, series, type, height }) => (
-    <div data-testid="apex-chart" data-type={type} data-height={height}>
-      Mock ApexChart
-    </div>
-  ),
+global.WebSocket = jest.fn().mockImplementation(() => ({
+  addEventListener: jest.fn(),
+  removeEventListener: jest.fn(),
+  send: jest.fn(),
+  close: jest.fn(),
+  readyState: 1,
 }));
 
-jest.mock('recharts', () => ({
-  ResponsiveContainer: ({ children }) => <div data-testid="responsive-container">{children}</div>,
-  LineChart: ({ children }) => <div data-testid="line-chart">{children}</div>,
-  Line: () => <div data-testid="line" />,
-  XAxis: () => <div data-testid="x-axis" />,
-  YAxis: () => <div data-testid="y-axis" />,
-  CartesianGrid: () => <div data-testid="cartesian-grid" />,
-  Tooltip: () => <div data-testid="tooltip" />,
-  Legend: () => <div data-testid="legend" />,
-}));
-
-// Custom render function for testing with providers
-import { render } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider } from '../client/src/components/ThemeProvider';
-
-export const renderWithProviders = (ui, options = {}) => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-
-  const AllTheProviders = ({ children }) => (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        {children}
-      </ThemeProvider>
-    </QueryClientProvider>
-  );
-
-  return render(ui, { wrapper: AllTheProviders, ...options });
+// Mock performance API
+global.performance = {
+  now: jest.fn(() => Date.now()),
+  mark: jest.fn(),
+  measure: jest.fn(),
+  getEntriesByName: jest.fn(() => []),
+  getEntriesByType: jest.fn(() => []),
 };
 
-// Make it available globally
-global.renderWithProviders = renderWithProviders; 
+// Mock IntersectionObserver
+global.IntersectionObserver = jest.fn().mockImplementation(() => ({
+  observe: jest.fn(),
+  unobserve: jest.fn(),
+  disconnect: jest.fn(),
+}));
+
+// Mock ResizeObserver
+global.ResizeObserver = jest.fn().mockImplementation(() => ({
+  observe: jest.fn(),
+  unobserve: jest.fn(),
+  disconnect: jest.fn(),
+}));
+
+// Suppress console errors during tests (optional)
+const originalError = console.error;
+beforeAll(() => {
+  console.error = (...args) => {
+    if (
+      typeof args[0] === 'string' &&
+      args[0].includes('Warning: ReactDOM.render is deprecated')
+    ) {
+      return;
+    }
+    originalError.call(console, ...args);
+  };
+});
+
+afterAll(() => {
+  console.error = originalError;
+}); 

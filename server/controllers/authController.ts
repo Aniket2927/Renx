@@ -3,76 +3,50 @@ import bcrypt from 'bcrypt';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { dbManager } from '../db';
 import { rbacService } from '../services/rbacService';
+import { authTokenService } from '../services/authTokenService';
+import { mfaService } from '../services/mfaService';
+import { sessionService } from '../services/sessionService';
+import { auditService } from '../services/auditService';
 import { AuthRequest, AuthResponse, TokenResponse, EnhancedUser } from '../types/enhanced-types';
 
 /**
- * Enhanced Authentication Controller
+ * Enhanced Authentication Controller with MFA and Session Management
  * 
- * Handles multi-tenant authentication with RBAC support
+ * Handles multi-tenant authentication with comprehensive security features
  */
 export class AuthController {
   private readonly JWT_SECRET = process.env.JWT_SECRET || 'renx-jwt-secret';
-  private readonly JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+  private readonly JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m'; // Shortened for security
   private readonly REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || '7d';
 
   /**
-   * Multi-tenant user login
+   * Enhanced multi-tenant user login with MFA support
    */
   async login(req: Request, res: Response): Promise<void> {
     try {
-      let { tenantId, email, password }: AuthRequest = req.body;
+      const { email, password, tenantId, totpCode, rememberDevice } = req.body;
 
-      // Default to demo_tenant if no tenant specified (for testing)
-      if (!tenantId) {
-        tenantId = 'demo_tenant';
-      }
-
-      if (!email || !password) {
+      if (!email || !password || !tenantId) {
         res.status(400).json({
           success: false,
-          message: 'Email and password are required',
+          message: 'Email, password, and tenant ID are required',
           code: 'MISSING_CREDENTIALS',
           timestamp: new Date().toISOString()
         });
         return;
       }
 
-      // Validate tenant exists and is active
-      const pool = await dbManager.getPool();
-      const tenantResult = await pool.query(
-        'SELECT status FROM tenants WHERE id = $1 AND active = true',
-        [tenantId]
-      );
-
-      if (tenantResult.rows.length === 0) {
-        res.status(404).json({
-          success: false,
-          message: 'Tenant not found',
-          code: 'TENANT_NOT_FOUND',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      if (tenantResult.rows[0].status !== 'active') {
-        res.status(403).json({
-          success: false,
-          message: 'Tenant is not active',
-          code: 'TENANT_INACTIVE',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      // Find user in tenant schema
+      // Get database pool for the tenant
       const userPool = await dbManager.getPool(tenantId);
+
+      // Find user with comprehensive validation
       const userResult = await userPool.query(
-        `SELECT id, username, email, password, first_name, last_name, role, status, last_login 
-         FROM users WHERE email = $1`,
-        [email]
+        'SELECT id, username, email, password, first_name, last_name, role, status, last_login FROM users WHERE email = $1',
+        [email.toLowerCase()]
       );
 
       if (userResult.rows.length === 0) {
+        await auditService.logUserLogin(tenantId, 'unknown', false, req.ip, req.get('User-Agent'));
         res.status(401).json({
           success: false,
           message: 'Invalid credentials',
@@ -86,6 +60,7 @@ export class AuthController {
 
       // Check user status
       if (user.status !== 'active') {
+        await auditService.logUserLogin(tenantId, user.id.toString(), false, req.ip, req.get('User-Agent'));
         res.status(403).json({
           success: false,
           message: 'User account is not active',
@@ -98,6 +73,7 @@ export class AuthController {
       // Verify password
       const passwordMatch = await bcrypt.compare(password, user.password);
       if (!passwordMatch) {
+        await auditService.logUserLogin(tenantId, user.id.toString(), false, req.ip, req.get('User-Agent'));
         res.status(401).json({
           success: false,
           message: 'Invalid credentials',
@@ -107,6 +83,64 @@ export class AuthController {
         return;
       }
 
+      // Check if MFA is enabled
+      const mfaEnabled = await mfaService.isMFAEnabled(tenantId, user.id);
+      
+      if (mfaEnabled && !totpCode) {
+        // Return MFA challenge requirement
+        res.status(200).json({
+          success: false,
+          requiresMFA: true,
+          message: 'Multi-factor authentication required',
+          code: 'MFA_REQUIRED',
+          userId: user.id,
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      // Verify MFA if provided
+      if (mfaEnabled && totpCode) {
+        const mfaVerification = await mfaService.verifyMFAChallenge(
+          tenantId,
+          user.id,
+          'totp',
+          totpCode,
+          undefined,
+          this.getDeviceFingerprint(req)
+        );
+
+        if (!mfaVerification.isValid) {
+          await auditService.logUserLogin(tenantId, user.id.toString(), false, req.ip, req.get('User-Agent'));
+          res.status(401).json({
+            success: false,
+            message: 'Invalid authentication code',
+            code: 'INVALID_MFA_CODE',
+            timestamp: new Date().toISOString()
+          });
+          return;
+        }
+      }
+
+      // Create session
+      const deviceInfo = this.extractDeviceInfo(req);
+      const session = await sessionService.createSession(
+        tenantId,
+        user.id,
+        this.getDeviceFingerprint(req),
+        deviceInfo,
+        req.ip || 'unknown'
+      );
+
+      // Generate token pair using enhanced token service
+      const tokenPair = await authTokenService.generateTokenPair(
+        tenantId,
+        user.id,
+        user.email,
+        user.role,
+        this.getDeviceFingerprint(req)
+      );
+
       // Update last login
       await userPool.query(
         'UPDATE users SET last_login = NOW() WHERE id = $1',
@@ -115,13 +149,6 @@ export class AuthController {
 
       // Get user permissions
       const permissions = await rbacService.getUserPermissions(tenantId, user.id);
-
-      // Generate tokens
-      const accessToken = this.generateAccessToken(tenantId, user.id, user.role);
-      const refreshToken = this.generateRefreshToken(tenantId, user.id);
-
-      // Store refresh token (in production, use Redis or database)
-      await this.storeRefreshToken(tenantId, user.id, refreshToken);
 
       const enhancedUser: EnhancedUser = {
         id: user.id,
@@ -144,250 +171,30 @@ export class AuthController {
         message: 'Login successful',
         data: {
           user: enhancedUser,
-          accessToken,
-          refreshToken,
-          expiresIn: this.parseExpirationTime(this.JWT_EXPIRES_IN)
+          accessToken: tokenPair.accessToken,
+          refreshToken: tokenPair.refreshToken,
+          expiresIn: tokenPair.expiresIn,
+          sessionId: session.id,
+          mfaEnabled
         }
       };
+
+      await auditService.logUserLogin(tenantId, user.id.toString(), true, req.ip, req.get('User-Agent'));
 
       res.json(response);
     } catch (error) {
       console.error('Login error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal authentication error',
-        code: 'AUTH_ERROR',
+        message: 'Failed to authenticate user',
+        code: 'LOGIN_ERROR',
         timestamp: new Date().toISOString()
       });
     }
   }
 
   /**
-   * Register new user (Admin only)
-   */
-  async register(req: Request, res: Response): Promise<void> {
-    try {
-      const { username, email, password, firstName, lastName, role = 'user' } = req.body;
-      const tenantId = req.tenantId!;
-      const currentUserId = req.userId!;
-
-      if (!username || !email || !password) {
-        res.status(400).json({
-          success: false,
-          message: 'Username, email, and password are required',
-          code: 'MISSING_REQUIRED_FIELDS',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      // Check if user has permission to create users
-      const hasPermission = await rbacService.hasPermission(
-        tenantId,
-        currentUserId,
-        'users',
-        'create'
-      );
-
-      if (!hasPermission) {
-        res.status(403).json({
-          success: false,
-          message: 'Insufficient permissions to create users',
-          code: 'INSUFFICIENT_PERMISSIONS',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      // Check if user already exists
-      const userPool = await dbManager.getPool(tenantId);
-      const existingUser = await userPool.query(
-        'SELECT id FROM users WHERE email = $1 OR username = $2',
-        [email, username]
-      );
-
-      if (existingUser.rows.length > 0) {
-        res.status(409).json({
-          success: false,
-          message: 'User with this email or username already exists',
-          code: 'USER_EXISTS',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 12);
-
-      // Create user
-      const result = await userPool.query(
-        `INSERT INTO users (username, email, password, first_name, last_name, role, status, tenant_id, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
-         RETURNING id, username, email, first_name, last_name, role, status, created_at`,
-        [username, email, hashedPassword, firstName, lastName, role, 'active', tenantId]
-      );
-
-      const newUser = result.rows[0];
-
-      // Get permissions for the new user
-      const permissions = await rbacService.getUserPermissions(tenantId, newUser.id);
-
-      const enhancedUser: EnhancedUser = {
-        id: newUser.id,
-        username: newUser.username,
-        email: newUser.email,
-        firstName: newUser.first_name,
-        lastName: newUser.last_name,
-        role: newUser.role,
-        permissions,
-        status: newUser.status,
-        tenantId,
-        isActive: newUser.status === 'active',
-        createdAt: newUser.created_at.toISOString(),
-        updatedAt: newUser.created_at.toISOString()
-      };
-
-      res.status(201).json({
-        success: true,
-        message: 'User registered successfully',
-        data: enhancedUser,
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error('Registration error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to register user',
-        code: 'REGISTRATION_ERROR',
-        timestamp: new Date().toISOString()
-      });
-    }
-  }
-
-  /**
-   * Public user signup (for new user registration)
-   */
-  async publicSignup(req: Request, res: Response): Promise<void> {
-    try {
-      const { tenantId, username, email, password, firstName, lastName } = req.body;
-
-      if (!tenantId || !username || !email || !password) {
-        res.status(400).json({
-          success: false,
-          message: 'Tenant ID, username, email, and password are required',
-          code: 'MISSING_REQUIRED_FIELDS',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      // Validate tenant exists and is active
-      const pool = await dbManager.getPool();
-      const tenantResult = await pool.query(
-        'SELECT status FROM tenants WHERE id = $1 AND active = true',
-        [tenantId]
-      );
-
-      if (tenantResult.rows.length === 0) {
-        res.status(404).json({
-          success: false,
-          message: 'Tenant not found',
-          code: 'TENANT_NOT_FOUND',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      if (tenantResult.rows[0].status !== 'active') {
-        res.status(403).json({
-          success: false,
-          message: 'Tenant is not active',
-          code: 'TENANT_INACTIVE',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      // Check if user already exists
-      const userPool = await dbManager.getPool(tenantId);
-      const existingUser = await userPool.query(
-        'SELECT id FROM users WHERE email = $1 OR username = $2',
-        [email, username]
-      );
-
-      if (existingUser.rows.length > 0) {
-        res.status(409).json({
-          success: false,
-          message: 'User with this email or username already exists',
-          code: 'USER_EXISTS',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 12);
-
-      // Create user with 'user' role by default
-      const result = await userPool.query(
-        `INSERT INTO users (username, email, password, first_name, last_name, role, status, tenant_id, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
-         RETURNING id, username, email, first_name, last_name, role, status, created_at`,
-        [username, email, hashedPassword, firstName, lastName, 'user', 'active', tenantId]
-      );
-
-      const newUser = result.rows[0];
-
-      // Get permissions for the new user
-      const permissions = await rbacService.getUserPermissions(tenantId, newUser.id);
-
-      // Generate tokens for immediate login
-      const accessToken = this.generateAccessToken(tenantId, newUser.id, newUser.role);
-      const refreshToken = this.generateRefreshToken(tenantId, newUser.id);
-
-      // Store refresh token
-      await this.storeRefreshToken(tenantId, newUser.id, refreshToken);
-
-      const enhancedUser: EnhancedUser = {
-        id: newUser.id,
-        username: newUser.username,
-        email: newUser.email,
-        firstName: newUser.first_name,
-        lastName: newUser.last_name,
-        role: newUser.role,
-        permissions,
-        status: newUser.status,
-        tenantId,
-        isActive: newUser.status === 'active',
-        createdAt: newUser.created_at.toISOString(),
-        updatedAt: newUser.created_at.toISOString()
-      };
-
-      const response: AuthResponse = {
-        success: true,
-        message: 'User registered successfully',
-        data: {
-          user: enhancedUser,
-          accessToken,
-          refreshToken,
-          expiresIn: this.parseExpirationTime(this.JWT_EXPIRES_IN)
-        }
-      };
-
-      res.status(201).json(response);
-    } catch (error) {
-      console.error('Public signup error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to register user',
-        code: 'SIGNUP_ERROR',
-        timestamp: new Date().toISOString()
-      });
-    }
-  }
-
-  /**
-   * Refresh access token
+   * Enhanced token refresh with session validation
    */
   async refreshToken(req: Request, res: Response): Promise<void> {
     try {
@@ -403,77 +210,29 @@ export class AuthController {
         return;
       }
 
-      // Verify refresh token
-      let decoded: any;
-      try {
-        decoded = jwt.verify(refreshToken, this.JWT_SECRET);
-      } catch {
+      // Use enhanced token service for refresh
+      const newTokenPair = await authTokenService.refreshAccessToken(
+        refreshToken,
+        this.getDeviceFingerprint(req)
+      );
+
+      if (!newTokenPair) {
         res.status(401).json({
           success: false,
-          message: 'Invalid refresh token',
+          message: 'Invalid or expired refresh token',
           code: 'INVALID_REFRESH_TOKEN',
           timestamp: new Date().toISOString()
         });
         return;
       }
 
-      const { tenantId, userId, type } = decoded;
-
-      if (type !== 'refresh') {
-        res.status(401).json({
-          success: false,
-          message: 'Invalid token type',
-          code: 'INVALID_TOKEN_TYPE',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      // Validate token is stored (check against database/Redis)
-      const isValidToken = await this.validateRefreshToken(tenantId, userId, refreshToken);
-      if (!isValidToken) {
-        res.status(401).json({
-          success: false,
-          message: 'Refresh token has been revoked',
-          code: 'TOKEN_REVOKED',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      // Get user information
-      const userPool = await dbManager.getPool(tenantId);
-      const userResult = await userPool.query(
-        'SELECT id, role, status FROM users WHERE id = $1',
-        [userId]
-      );
-
-      if (userResult.rows.length === 0 || userResult.rows[0].status !== 'active') {
-        res.status(401).json({
-          success: false,
-          message: 'User not found or inactive',
-          code: 'USER_NOT_FOUND',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      const user = userResult.rows[0];
-
-      // Generate new tokens
-      const newAccessToken = this.generateAccessToken(tenantId, userId, user.role);
-      const newRefreshToken = this.generateRefreshToken(tenantId, userId);
-
-      // Store new refresh token and invalidate old one
-      await this.replaceRefreshToken(tenantId, userId, refreshToken, newRefreshToken);
-
       const response: TokenResponse = {
         success: true,
         message: 'Token refreshed successfully',
         data: {
-          accessToken: newAccessToken,
-          refreshToken: newRefreshToken,
-          expiresIn: this.parseExpirationTime(this.JWT_EXPIRES_IN)
+          accessToken: newTokenPair.accessToken,
+          refreshToken: newTokenPair.refreshToken,
+          expiresIn: newTokenPair.expiresIn
         }
       };
 
@@ -490,81 +249,32 @@ export class AuthController {
   }
 
   /**
-   * Get current user information
-   */
-  async getCurrentUser(req: Request, res: Response): Promise<void> {
-    try {
-      const tenantId = req.tenantId!;
-      const userId = req.userId!;
-
-      const pool = await dbManager.getPool();
-      const userResult = await pool.query(
-        'SELECT id, username, email, first_name, last_name, role, status, last_login FROM users WHERE id = $1',
-        [userId]
-      );
-
-      if (userResult.rows.length === 0) {
-        res.status(404).json({
-          success: false,
-          message: 'User not found',
-          code: 'USER_NOT_FOUND',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      const user = userResult.rows[0];
-
-             const enhancedUser: EnhancedUser = {
-         id: user.id,
-         username: user.username,
-         email: user.email,
-         firstName: user.first_name,
-         lastName: user.last_name,
-         role: user.role,
-         status: user.status,
-         tenantId,
-         isActive: user.status === 'active',
-         lastLoginAt: user.last_login?.toISOString(),
-         createdAt: new Date().toISOString(),
-         updatedAt: new Date().toISOString(),
-         permissions: [] // Add default empty permissions array
-       };
-
-      res.json({
-        success: true,
-        message: 'User information retrieved successfully',
-        data: enhancedUser,
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error('Get current user error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to get user information',
-        code: 'USER_INFO_ERROR',
-        timestamp: new Date().toISOString()
-      });
-    }
-  }
-
-  /**
-   * Logout user
+   * Enhanced logout with session termination
    */
   async logout(req: Request, res: Response): Promise<void> {
     try {
-      const { refreshToken } = req.body;
+      const { refreshToken, logoutAllSessions } = req.body;
       const tenantId = req.tenantId!;
       const userId = req.userId!;
 
-      if (refreshToken) {
-        // Invalidate refresh token
-        await this.revokeRefreshToken(tenantId, userId, refreshToken);
+      if (logoutAllSessions) {
+        // Terminate all user sessions
+        await sessionService.terminateAllUserSessions(tenantId, userId);
+        await authTokenService.revokeAllRefreshTokens(tenantId, userId);
+      } else {
+        // Terminate current session only
+        if (req.sessionID) {
+          await sessionService.terminateSession(req.sessionID, 'manual_logout');
+        }
+        
+        if (refreshToken) {
+          await authTokenService.revokeRefreshToken(refreshToken, tenantId, userId);
+        }
       }
 
       res.json({
         success: true,
-        message: 'Logged out successfully',
+        message: logoutAllSessions ? 'Logged out from all sessions' : 'Logged out successfully',
         timestamp: new Date().toISOString()
       });
     } catch (error) {
@@ -579,168 +289,206 @@ export class AuthController {
   }
 
   /**
-   * Change user password
+   * Setup MFA for user
    */
-  async changePassword(req: Request, res: Response): Promise<void> {
+  async setupMFA(req: Request, res: Response): Promise<void> {
     try {
-      const { currentPassword, newPassword } = req.body;
       const tenantId = req.tenantId!;
       const userId = req.userId!;
+      const userEmail = req.auth?.email!;
 
-      if (!currentPassword || !newPassword) {
-        res.status(400).json({
-          success: false,
-          message: 'Current password and new password are required',
-          code: 'MISSING_PASSWORDS',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      // Get current user
-      const pool = await dbManager.getPool(tenantId);
-      const userResult = await pool.query(
-        'SELECT password FROM users WHERE id = $1',
-        [userId]
-      );
-
-      if (userResult.rows.length === 0) {
-        res.status(404).json({
-          success: false,
-          message: 'User not found',
-          code: 'USER_NOT_FOUND',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      // Verify current password
-      const passwordMatch = await bcrypt.compare(currentPassword, userResult.rows[0].password);
-      if (!passwordMatch) {
-        res.status(401).json({
-          success: false,
-          message: 'Current password is incorrect',
-          code: 'INVALID_CURRENT_PASSWORD',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      // Hash new password
-      const hashedNewPassword = await bcrypt.hash(newPassword, 12);
-
-      // Update password
-      await pool.query(
-        'UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2',
-        [hashedNewPassword, userId]
-      );
-
-      // Revoke all refresh tokens for this user
-      await this.revokeAllRefreshTokens(tenantId, userId);
+      const mfaSetup = await mfaService.setupTOTP(tenantId, userId, userEmail);
 
       res.json({
         success: true,
-        message: 'Password changed successfully',
-        timestamp: new Date().toISOString()
+        message: 'MFA setup initiated',
+        data: {
+          secret: mfaSetup.secret,
+          qrCodeUrl: mfaSetup.qrCodeUrl,
+          backupCodes: mfaSetup.backupCodes,
+          manualEntryKey: mfaSetup.manualEntryKey
+        }
       });
     } catch (error) {
-      console.error('Change password error:', error);
+      console.error('MFA setup error:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to change password',
-        code: 'PASSWORD_CHANGE_ERROR',
+        message: 'Failed to setup MFA',
+        code: 'MFA_SETUP_ERROR',
         timestamp: new Date().toISOString()
       });
     }
   }
 
   /**
-   * Generate access token
+   * Verify MFA setup
    */
-  private generateAccessToken(tenantId: string, userId: number, role: string): string {
-    return jwt.sign(
-      { tenantId, userId, role, type: 'access' },
-      this.JWT_SECRET,
-      { expiresIn: this.JWT_EXPIRES_IN } as SignOptions
-    );
-  }
+  async verifyMFASetup(req: Request, res: Response): Promise<void> {
+    try {
+      const { totpCode } = req.body;
+      const tenantId = req.tenantId!;
+      const userId = req.userId!;
 
-  /**
-   * Generate refresh token
-   */
-  private generateRefreshToken(tenantId: string, userId: number): string {
-    return jwt.sign(
-      { tenantId, userId, type: 'refresh' },
-      this.JWT_SECRET,
-      { expiresIn: this.REFRESH_TOKEN_EXPIRES_IN } as SignOptions
-    );
-  }
+      if (!totpCode) {
+        res.status(400).json({
+          success: false,
+          message: 'TOTP code is required',
+          code: 'MISSING_TOTP_CODE',
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
 
-  /**
-   * Store refresh token (simplified - in production use Redis)
-   */
-  private async storeRefreshToken(tenantId: string, userId: number, _token: string): Promise<void> {
-    // For now, store in memory or database
-    // In production, use Redis with expiration
-    console.log(`Storing refresh token for ${tenantId}:${userId}`);
-  }
+      const verified = await mfaService.verifyTOTPSetup(tenantId, userId, totpCode);
 
-  /**
-   * Validate refresh token
-   */
-  private async validateRefreshToken(_tenantId: string, _userId: number, _token: string): Promise<boolean> {
-    // For now, assume valid if JWT verification passed
-    // In production, check against Redis/database
-    return true;
-  }
-
-  /**
-   * Replace refresh token
-   */
-  private async replaceRefreshToken(
-    tenantId: string,
-    userId: number,
-    oldToken: string,
-    newToken: string
-  ): Promise<void> {
-    // Remove old token and store new one
-    await this.revokeRefreshToken(tenantId, userId, oldToken);
-    await this.storeRefreshToken(tenantId, userId, newToken);
-  }
-
-  /**
-   * Revoke refresh token
-   */
-  private async revokeRefreshToken(tenantId: string, userId: number, _token: string): Promise<void> {
-    // Remove token from storage
-    console.log(`Revoking refresh token for ${tenantId}:${userId}`);
-  }
-
-  /**
-   * Revoke all refresh tokens for user
-   */
-  private async revokeAllRefreshTokens(tenantId: string, userId: number): Promise<void> {
-    // Remove all tokens for user
-    console.log(`Revoking all refresh tokens for ${tenantId}:${userId}`);
-  }
-
-  /**
-   * Parse expiration time to seconds
-   */
-  private parseExpirationTime(expiresIn: string): number {
-    const match = expiresIn.match(/^(\d+)([smhd])$/);
-    if (!match) return 3600; // Default 1 hour
-
-    const [, value, unit] = match;
-    const num = parseInt(value);
-
-    switch (unit) {
-      case 's': return num;
-      case 'm': return num * 60;
-      case 'h': return num * 60 * 60;
-      case 'd': return num * 60 * 60 * 24;
-      default: return 3600;
+      if (verified) {
+        res.json({
+          success: true,
+          message: 'MFA enabled successfully'
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid TOTP code',
+          code: 'INVALID_TOTP_CODE',
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      console.error('MFA verification error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to verify MFA',
+        code: 'MFA_VERIFICATION_ERROR',
+        timestamp: new Date().toISOString()
+      });
     }
+  }
+
+  /**
+   * Get active sessions for user
+   */
+  async getActiveSessions(req: Request, res: Response): Promise<void> {
+    try {
+      const tenantId = req.tenantId!;
+      const userId = req.userId!;
+
+      const sessions = await sessionService.getUserSessions(tenantId, userId);
+
+      res.json({
+        success: true,
+        data: {
+          sessions: sessions.map(session => ({
+            id: session.id,
+            deviceInfo: session.deviceInfo,
+            ipAddress: session.ipAddress,
+            lastActivity: session.lastActivity,
+            createdAt: session.createdAt,
+            isCurrentSession: session.id === req.sessionID
+          }))
+        }
+      });
+    } catch (error) {
+      console.error('Get sessions error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get active sessions',
+        code: 'GET_SESSIONS_ERROR',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Terminate specific session
+   */
+  async terminateSession(req: Request, res: Response): Promise<void> {
+    try {
+      const { sessionId } = req.params;
+      const tenantId = req.tenantId!;
+      const userId = req.userId!;
+
+      // Verify the session belongs to the user
+      const sessions = await sessionService.getUserSessions(tenantId, userId);
+      const targetSession = sessions.find(s => s.id === sessionId);
+
+      if (!targetSession) {
+        res.status(404).json({
+          success: false,
+          message: 'Session not found',
+          code: 'SESSION_NOT_FOUND',
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      await sessionService.terminateSession(sessionId, 'manual_termination');
+
+      res.json({
+        success: true,
+        message: 'Session terminated successfully'
+      });
+    } catch (error) {
+      console.error('Terminate session error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to terminate session',
+        code: 'TERMINATE_SESSION_ERROR',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Extract device information from request
+   */
+  private extractDeviceInfo(req: Request): any {
+    const userAgent = req.get('User-Agent') || '';
+    
+    return {
+      userAgent,
+      platform: this.extractPlatform(userAgent),
+      browser: this.extractBrowser(userAgent),
+      acceptLanguage: req.get('Accept-Language'),
+      acceptEncoding: req.get('Accept-Encoding')
+    };
+  }
+
+  /**
+   * Generate device fingerprint
+   */
+  private getDeviceFingerprint(req: Request): string {
+    const components = [
+      req.get('User-Agent') || '',
+      req.get('Accept-Language') || '',
+      req.get('Accept-Encoding') || '',
+      req.ip || ''
+    ];
+    
+    return Buffer.from(components.join('|')).toString('base64');
+  }
+
+  /**
+   * Extract platform from user agent
+   */
+  private extractPlatform(userAgent: string): string {
+    if (userAgent.includes('Windows')) return 'Windows';
+    if (userAgent.includes('Mac')) return 'macOS';
+    if (userAgent.includes('Linux')) return 'Linux';
+    if (userAgent.includes('Android')) return 'Android';
+    if (userAgent.includes('iOS')) return 'iOS';
+    return 'Unknown';
+  }
+
+  /**
+   * Extract browser from user agent
+   */
+  private extractBrowser(userAgent: string): string {
+    if (userAgent.includes('Chrome')) return 'Chrome';
+    if (userAgent.includes('Firefox')) return 'Firefox';
+    if (userAgent.includes('Safari')) return 'Safari';
+    if (userAgent.includes('Edge')) return 'Edge';
+    return 'Unknown';
   }
 }
 

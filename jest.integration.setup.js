@@ -1,179 +1,174 @@
-// Integration test setup
-let dbManager;
-let rbacService;
+/**
+ * Jest Integration Test Setup
+ * Configures test environment for database and API integration testing
+ */
 
-// Setup before all integration tests
+import { jest } from '@jest/globals';
+
+// Set test environment variables
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://localhost:5432/renx_test';
+process.env.PORT = '0'; // Use random port for testing
+process.env.SESSION_SECRET = 'test-session-secret';
+process.env.JWT_SECRET = 'test-jwt-secret';
+
+// Disable external services in test environment
+process.env.REDIS_URL = '';
+process.env.KAFKA_BROKERS = '';
+process.env.OPENAI_API_KEY = 'test-key';
+
+// Mock external dependencies that aren't needed for integration tests
+jest.mock('ioredis', () => {
+  return jest.fn().mockImplementation(() => ({
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue('OK'),
+    del: jest.fn().mockResolvedValue(1),
+    exists: jest.fn().mockResolvedValue(0),
+    expire: jest.fn().mockResolvedValue(1),
+    disconnect: jest.fn().mockResolvedValue(undefined),
+    on: jest.fn(),
+    ping: jest.fn().mockResolvedValue('PONG')
+  }));
+});
+
+jest.mock('kafkajs', () => ({
+  Kafka: jest.fn().mockImplementation(() => ({
+    producer: jest.fn().mockReturnValue({
+      connect: jest.fn().mockResolvedValue(undefined),
+      send: jest.fn().mockResolvedValue(undefined),
+      disconnect: jest.fn().mockResolvedValue(undefined)
+    }),
+    consumer: jest.fn().mockReturnValue({
+      connect: jest.fn().mockResolvedValue(undefined),
+      subscribe: jest.fn().mockResolvedValue(undefined),
+      run: jest.fn().mockResolvedValue(undefined),
+      disconnect: jest.fn().mockResolvedValue(undefined)
+    })
+  }))
+}));
+
+jest.mock('nodemailer', () => ({
+  createTransporter: jest.fn().mockReturnValue({
+    sendMail: jest.fn().mockResolvedValue({ messageId: 'test-message-id' })
+  })
+}));
+
+// Mock WebSocket for testing
+global.WebSocket = jest.fn().mockImplementation(() => ({
+  addEventListener: jest.fn(),
+  removeEventListener: jest.fn(),
+  send: jest.fn(),
+  close: jest.fn(),
+  readyState: 1,
+  CONNECTING: 0,
+  OPEN: 1,
+  CLOSING: 2,
+  CLOSED: 3
+}));
+
+// Mock fetch for external API calls
+global.fetch = jest.fn();
+
+// Console override to reduce noise in tests
+const originalConsole = { ...console };
+global.console = {
+  ...console,
+  log: jest.fn(),
+  debug: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn()
+};
+
+// Test database setup utilities
+global.testUtils = {
+  // Reset console for specific tests that need real logging
+  enableConsole: () => {
+    Object.assign(console, originalConsole);
+  },
+  
+  // Disable console for noisy tests
+  disableConsole: () => {
+    Object.assign(console, {
+      log: jest.fn(),
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn()
+    });
+  },
+
+  // Create test user data
+  createTestUser: (overrides = {}) => ({
+    id: 'test-user-' + Date.now(),
+    email: `test-${Date.now()}@example.com`,
+    firstName: 'Test',
+    lastName: 'User',
+    tenantId: 'test-tenant-001',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides
+  }),
+
+  // Create test order data
+  createTestOrder: (overrides = {}) => ({
+    id: 'test-order-' + Date.now(),
+    symbol: 'AAPL',
+    quantity: 100,
+    orderType: 'market',
+    side: 'buy',
+    status: 'pending',
+    userId: 'test-user-001',
+    tenantId: 'test-tenant-001',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides
+  }),
+
+  // Create test portfolio data
+  createTestPortfolio: (overrides = {}) => ({
+    id: 'test-portfolio-' + Date.now(),
+    name: 'Test Portfolio',
+    totalValue: 100000,
+    dailyChange: 500,
+    dailyChangePercent: 0.5,
+    userId: 'test-user-001',
+    tenantId: 'test-tenant-001',
+    isDefault: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides
+  }),
+
+  // Wait for async operations
+  waitFor: (ms = 100) => new Promise(resolve => setTimeout(resolve, ms)),
+
+  // Generate random test data
+  randomString: (length = 8) => Math.random().toString(36).substring(2, length + 2),
+  randomNumber: (min = 1, max = 1000) => Math.floor(Math.random() * (max - min + 1)) + min,
+  randomPrice: () => Math.round((Math.random() * 1000 + 50) * 100) / 100
+};
+
+// Setup and teardown hooks
 beforeAll(async () => {
-  try {
-    console.log('Setting up integration test environment...');
-    
-    // Mock database manager for testing
-    dbManager = {
-      query: jest.fn().mockResolvedValue({ rows: [] }),
-      createTenant: jest.fn().mockResolvedValue({}),
-      close: jest.fn().mockResolvedValue(),
-      getDatabase: jest.fn().mockResolvedValue({
-        query: jest.fn().mockResolvedValue({ rows: [] })
-      })
-    };
-    
-    // Mock RBAC service for testing
-    rbacService = {
-      createRole: jest.fn().mockResolvedValue({}),
-      createUser: jest.fn().mockResolvedValue({}),
-      assignUserRole: jest.fn().mockResolvedValue({}),
-      assignUserToTenant: jest.fn().mockResolvedValue({})
-    };
-    
-    // Setup mock test data
-    await setupTestTenants();
-    await setupTestRoles();
-    await setupTestUsers();
-    
-    // Make services available globally
-    global.testServices = {
-      dbManager,
-      rbacService
-    };
-    
-    console.log('Integration test environment setup complete');
-  } catch (error) {
-    console.error('Integration test setup failed:', error);
-    // Continue with tests even if setup fails with fallback mocks
-    global.testServices = {
-      dbManager: {
-        query: jest.fn().mockResolvedValue({ rows: [] }),
-        createTenant: jest.fn().mockResolvedValue({}),
-        close: jest.fn().mockResolvedValue()
-      },
-      rbacService: {
-        createRole: jest.fn().mockResolvedValue({}),
-        createUser: jest.fn().mockResolvedValue({}),
-        assignUserRole: jest.fn().mockResolvedValue({}),
-        assignUserToTenant: jest.fn().mockResolvedValue({})
-      }
-    };
-  }
+  // Initialize test environment
+  console.log('🧪 Setting up integration test environment...');
 });
 
-// Cleanup after all integration tests
 afterAll(async () => {
-  try {
-    await cleanupTestData();
-    if (dbManager && dbManager.close) {
-      await dbManager.close();
-    }
-  } catch (error) {
-    console.error('Integration test cleanup failed:', error);
-  }
+  // Cleanup test environment
+  console.log('🧹 Cleaning up integration test environment...');
 });
 
-// Setup test tenants
-async function setupTestTenants() {
-  const tenants = [
-    {
-      id: 'test-tenant-1',
-      name: 'Test Corp',
-      domain: 'testcorp.com',
-      status: 'active',
-      plan: 'enterprise'
-    },
-    {
-      id: 'test-tenant-2',
-      name: 'Demo Inc',
-      domain: 'demo.com',
-      status: 'active',
-      plan: 'professional'
-    }
-  ];
-  
-  for (const tenant of tenants) {
-    if (dbManager && dbManager.createTenant) {
-      await dbManager.createTenant(tenant);
-    }
-  }
-}
+beforeEach(() => {
+  // Reset mocks before each test
+  jest.clearAllMocks();
+  global.fetch.mockClear();
+});
 
-// Setup test roles
-async function setupTestRoles() {
-  const roles = [
-    {
-      id: 'super_admin',
-      name: 'Super Admin',
-      permissions: ['*:*']
-    },
-    {
-      id: 'admin',
-      name: 'Admin',
-      permissions: [
-        'users:*',
-        'portfolios:*',
-        'trading:*',
-        'settings:read',
-        'settings:write'
-      ]
-    },
-    {
-      id: 'user',
-      name: 'User',
-      permissions: [
-        'portfolios:read',
-        'portfolios:write',
-        'trading:read',
-        'trading:write',
-        'profile:read',
-        'profile:write'
-      ]
-    }
-  ];
-  
-  for (const role of roles) {
-    if (rbacService && rbacService.createRole) {
-      await rbacService.createRole(role);
-    }
-  }
-}
+afterEach(() => {
+  // Cleanup after each test
+  jest.restoreAllMocks();
+});
 
-// Setup test users
-async function setupTestUsers() {
-  const users = [
-    {
-      id: 'test-user-admin',
-      email: 'admin@testcorp.com',
-      tenantId: 'test-tenant-1',
-      roles: ['admin']
-    },
-    {
-      id: 'test-user-regular',
-      email: 'user@testcorp.com',
-      tenantId: 'test-tenant-1',
-      roles: ['user']
-    }
-  ];
-  
-  for (const user of users) {
-    if (rbacService && rbacService.createUser) {
-      await rbacService.createUser(user);
-      for (const role of user.roles) {
-        if (rbacService.assignUserRole) {
-          await rbacService.assignUserRole(user.id, user.tenantId, role);
-        }
-      }
-    }
-  }
-}
-
-// Cleanup test data
-async function cleanupTestData() {
-  try {
-    if (dbManager && dbManager.query) {
-      // Clean up in reverse order of creation
-      await dbManager.query('DELETE FROM user_roles WHERE tenant_id LIKE $1', ['test-tenant-%']);
-      await dbManager.query('DELETE FROM users WHERE tenant_id LIKE $1', ['test-tenant-%']);
-      await dbManager.query('DELETE FROM roles WHERE id LIKE $1', ['%test%']);
-      await dbManager.query('DELETE FROM tenants WHERE id LIKE $1', ['test-tenant-%']);
-    }
-  } catch (error) {
-    console.error('Error cleaning up test data:', error);
-  }
-} 
+export default {}; 
