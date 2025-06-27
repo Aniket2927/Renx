@@ -4,9 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { initializeWebSocketService } from "./services/websocketService";
 import { messageService } from "./services/messageService";
 import { cacheService } from "./services/cacheService";
-import { notificationService } from './services/notificationService';
-import { pricingService } from './services/pricingService';
-import { auditService } from './services/auditService';
+import { dbManager } from './db';
 
 const app = express();
 app.use(express.json());
@@ -46,22 +44,31 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // CRITICAL FIX: Initialize database manager FIRST
+  try {
+    await dbManager.init();
+    log("✅ Database Manager initialized successfully");
+  } catch (error) {
+    log("❌ Database initialization failed - continuing with limited functionality");
+    console.error("Database error:", error);
+  }
+
   const server = await registerRoutes(app);
 
   // Initialize WebSocket service
   const websocketService = initializeWebSocketService(server);
   log("WebSocket service initialized");
 
-  // Initialize message service (Kafka)
+  // Initialize message service (Kafka) - make it optional
   try {
     await messageService.connect();
     log("Message service (Kafka) connected");
   } catch (error) {
     log("Warning: Message service (Kafka) connection failed - continuing without messaging");
-    console.error("Kafka connection error:", error);
+    // Don't log full Kafka errors to reduce noise
   }
 
-  // Test cache service (Redis)
+  // Test cache service (Redis) - make it optional
   try {
     const cacheHealthy = await cacheService.healthCheck();
     if (cacheHealthy) {
@@ -71,13 +78,31 @@ app.use((req, res, next) => {
     }
   } catch (error) {
     log("Warning: Cache service (Redis) connection failed - continuing without caching");
-    console.error("Redis connection error:", error);
   }
 
-  // Initialize enterprise services
-  log("Notification service initialized:", notificationService.getHealth().status);
-  log("Pricing service initialized:", pricingService.getHealth().status);  
-  log("Audit service initialized:", auditService.getHealth().status);
+  // Initialize enterprise services AFTER database is ready
+  try {
+    const { notificationService } = await import('./services/notificationService');
+    log("Notification service initialized:", notificationService.getHealth().status);
+  } catch (error) {
+    log("Warning: Notification service failed to initialize - continuing without notifications");
+  }
+
+  try {
+    const { pricingService } = await import('./services/pricingService');
+    log("Pricing service initialized:", pricingService.getHealth().status);
+  } catch (error) {
+    log("Warning: Pricing service failed to initialize - continuing without pricing");
+  }
+
+  let auditService: any = null;
+  try {
+    const auditModule = await import('./services/auditService');
+    auditService = auditModule.auditService;
+    log("Audit service initialized:", auditService.getHealth().status);
+  } catch (error) {
+    log("Warning: Audit service failed to initialize - continuing without auditing");
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -96,10 +121,10 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
+  if (process.env.NODE_ENV === "production") {
     serveStatic(app);
+  } else {
+    await setupVite(app, server);
   }
 
   // Serve the app on configurable port (default 3344 for development)
@@ -115,7 +140,7 @@ app.use((req, res, next) => {
     try {
       await messageService.disconnect();
       await cacheService.close();
-      await auditService.shutdown();
+      if (auditService) await auditService.shutdown();
       log('Services disconnected successfully');
     } catch (error) {
       console.error('Error during shutdown:', error);
@@ -128,7 +153,7 @@ app.use((req, res, next) => {
     try {
       await messageService.disconnect();
       await cacheService.close();
-      await auditService.shutdown();
+      if (auditService) await auditService.shutdown();
       log('Services disconnected successfully');
     } catch (error) {
       console.error('Error during shutdown:', error);

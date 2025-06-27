@@ -202,6 +202,7 @@ class NotificationService {
   }
 
   private async loadEmailTemplates(): Promise<void> {
+    const __dirname = path.dirname(new URL(import.meta.url).pathname);
     const templateDir = path.join(__dirname, '../templates/email');
     
     try {

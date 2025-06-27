@@ -4,6 +4,19 @@
 echo "🌟 Starting RenX Neural Trading Platform..."
 echo "=========================================="
 
+# Load environment configuration
+if [ -f "env-config.sh" ]; then
+    source ./env-config.sh
+else
+    echo "⚠️  env-config.sh not found. Setting basic environment variables..."
+    export TWELVE_DATA_API_KEY="353ddad011164bea9e7d8aea53138956"
+    export VITE_TWELVEDATA_API_KEY="353ddad011164bea9e7d8aea53138956"
+    export DATABASE_URL="postgresql://renx_admin:renx_password@localhost:5432/renx_db"
+    export NODE_ENV="development"
+    export KAFKA_ENABLED="false"
+    export KAFKAJS_NO_PARTITIONER_WARNING="1"
+fi
+
 # Function to check if port is in use
 check_port() {
     if lsof -Pi :$1 -sTCP:LISTEN -t >/dev/null ; then
@@ -43,7 +56,7 @@ start_service "AI-Backend" "cd ai-backend && ./start.sh > ../logs/ai-backend.log
 echo ""
 echo "🖥️  Phase 2: Starting Main Backend (Node.js)..."
 echo "-----------------------------------------------"
-start_service "Main-Backend" "DATABASE_URL='postgresql://renx_admin:renx_password@localhost:5432/renx_db' npm run dev > logs/backend.log 2>&1" 3344
+start_service "Main-Backend" "npm run dev > logs/backend.log 2>&1" 3344
 
 echo ""
 echo "🎨 Phase 3: Frontend is served by the main backend via Vite..."

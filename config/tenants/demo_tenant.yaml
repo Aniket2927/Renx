@@ -1,0 +1,15 @@
+trading:
+  maxOrderSize: 10000
+  minOrderSize: 1
+  maxLeverage: 5
+  minMarginLevel: 0.3
+
+risk:
+  maxDailyLoss: 5000
+  maxPositionSize: 25000
+  maxOpenPositions: 15
+
+execution:
+  maxSlippage: 0.02
+  minExecutionTime: 50
+  maxExecutionTime: 3000 

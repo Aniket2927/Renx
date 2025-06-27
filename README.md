@@ -55,8 +55,8 @@
 ./start-renx.sh
 
 # Platform will be available at:
-# 🌐 Frontend: http://localhost:5173
-# 🔧 Backend API: http://localhost:3000
+# 🌐 Frontend: http://localhost:3344
+# 🔧 Backend API: http://localhost:3344
 # 🧠 AI Backend: http://localhost:8181
 # 📊 API Documentation: http://localhost:8181/docs
 ```
@@ -70,7 +70,7 @@
 ./deploy.sh latest kubernetes
 
 # Production URLs:
-# 🌐 Main App: http://localhost:3000
+# 🌐 Main App: http://localhost:3344
 # 🧠 AI API: http://localhost:8181
 # 📊 Grafana: http://localhost:3001
 # 🔍 Prometheus: http://localhost:9090

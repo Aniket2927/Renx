@@ -22,6 +22,50 @@ interface TenantDatabase {
   db: ReturnType<typeof drizzle>;
 }
 
+// Standardized environment variable handling
+const getEnvVar = (key: string, fallback: string): string => {
+  const value = process.env[key];
+  if (!value) {
+    console.warn(`⚠️  Environment variable ${key} not set, using fallback: ${fallback}`);
+    return fallback;
+  }
+  return value;
+};
+
+// Parse database URL or construct from individual components
+const getDatabaseConfig = (): DatabaseConfig => {
+  const databaseUrl = process.env.DATABASE_URL;
+  
+  if (databaseUrl) {
+    try {
+      const url = new URL(databaseUrl);
+      return {
+        host: url.hostname,
+        port: parseInt(url.port) || 5432,
+        database: url.pathname.slice(1),
+        username: url.username,
+        password: url.password,
+        ssl: url.searchParams.get('ssl') === 'true' || url.searchParams.get('sslmode') === 'require',
+        maxConnections: parseInt(getEnvVar('DB_MAX_CONNECTIONS', '20'))
+      };
+    } catch (error) {
+      console.error('❌ Invalid DATABASE_URL format:', error);
+      console.log('🔄 Falling back to individual environment variables...');
+    }
+  }
+  
+  // Fallback to individual environment variables
+  return {
+    host: getEnvVar('DB_HOST', 'localhost'),
+    port: parseInt(getEnvVar('DB_PORT', '5432')),
+    database: getEnvVar('DB_NAME', 'renx_db'),
+    username: getEnvVar('DB_USER', 'renx_admin'),
+    password: getEnvVar('DB_PASSWORD', 'renx_password'),
+    ssl: getEnvVar('DB_SSL', 'false').toLowerCase() === 'true',
+    maxConnections: parseInt(getEnvVar('DB_MAX_CONNECTIONS', '20'))
+  };
+};
+
 // Multi-Tenant Database Manager
 class DatabaseManager {
   private mainPool: Pool;
@@ -32,35 +76,51 @@ class DatabaseManager {
   private defaultConfig: DatabaseConfig;
   private defaultPool: Pool;
   private defaultDb: ReturnType<typeof drizzle>;
+  private isInitialized = false;
 
   constructor() {
+    // Get standardized database configuration
+    this.defaultConfig = getDatabaseConfig();
+    
+    console.log('🗄️  Initializing Database Manager with configuration:');
+    console.log(`   Host: ${this.defaultConfig.host}:${this.defaultConfig.port}`);
+    console.log(`   Database: ${this.defaultConfig.database}`);
+    console.log(`   User: ${this.defaultConfig.username}`);
+    console.log(`   SSL: ${this.defaultConfig.ssl}`);
+    console.log(`   Max Connections: ${this.defaultConfig.maxConnections}`);
+
+    // Create connection string from config
+    const connectionString = this.buildConnectionString(this.defaultConfig);
+    
     // Main connection pool for tenant management
     this.mainPool = new Pool({
-      user: process.env.DB_USER || 'renx_admin',
-      host: process.env.DB_HOST || 'localhost',
-      database: process.env.DB_NAME || 'renx_db',
-      password: process.env.DB_PASSWORD || 'renx_password',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      max: 20, // Maximum number of clients in the pool
-      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection not established
+      user: this.defaultConfig.username,
+      host: this.defaultConfig.host,
+      database: this.defaultConfig.database,
+      password: this.defaultConfig.password,
+      port: this.defaultConfig.port,
+      ssl: this.defaultConfig.ssl,
+      max: this.defaultConfig.maxConnections,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
     });
 
-    // Initialize default configuration
-    this.defaultConfig = this.parseConnectionString(
-      process.env.DATABASE_URL || 'postgresql://renx_admin:renx_password@localhost:5432/renx_db'
-    );
-
-    // Initialize default pool and database
+    // Initialize default pool
     this.defaultPool = new Pool({
-      connectionString: process.env.DATABASE_URL || 'postgresql://renx_admin:renx_password@localhost:5432/renx_db',
-      max: 20,
+      connectionString,
+      max: this.defaultConfig.maxConnections,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 5000,
+      ssl: this.defaultConfig.ssl ? { rejectUnauthorized: false } : false
     });
 
     // Initialize default drizzle instance
-    const client = postgres(process.env.DATABASE_URL || 'postgresql://renx_admin:renx_password@localhost:5432/renx_db');
+    const client = postgres(connectionString, {
+      ssl: this.defaultConfig.ssl ? { rejectUnauthorized: false } : false,
+      max: this.defaultConfig.maxConnections,
+      idle_timeout: 30,
+      connect_timeout: 5
+    });
     this.defaultDb = drizzle(client, { schema });
 
     // Initialize health check interval (5 minutes)
@@ -71,72 +131,114 @@ class DatabaseManager {
   }
 
   /**
-   * Initialize the database manager
+   * Build connection string from config
    */
-  private async init(): Promise<void> {
+  private buildConnectionString(config: DatabaseConfig): string {
+    const sslParam = config.ssl ? '?ssl=true' : '';
+    return `postgresql://${config.username}:${config.password}@${config.host}:${config.port}/${config.database}${sslParam}`;
+  }
+
+  /**
+   * Initialize database manager
+   */
+  async init() {
     try {
-      // Test main connection
-      await this.mainPool.query('SELECT 1');
-      console.log('Database connection established successfully');
+      console.log('🔄 Testing database connection...');
       
-      // Load tenant schema mapping into cache
-      await this.refreshTenantSchemaCache();
+      // Test connection
+      const client = await this.defaultPool.connect();
+      await client.query('SELECT NOW()');
+      client.release();
+      
+      console.log('✅ Database connection successful');
+      
+      // Initialize tenant management schema
+      await this.initializeTenantManagement();
+      
+      this.isInitialized = true;
+      console.log('🎉 Database Manager initialized successfully');
+      
     } catch (error) {
-      console.error('Error initializing database connection:', error);
-      console.log('Database not available - running in development mode without database');
-      // Don't throw error in development mode
+      console.error('❌ Database initialization failed:', error);
+      console.error('🔧 Please check your database configuration and ensure PostgreSQL is running');
+      
+      // Don't throw error to allow application to continue with limited functionality
+      console.log('⚠️  Application will continue with limited database functionality');
     }
   }
 
   /**
-   * Refresh the tenant schema cache
+   * Initialize tenant management schema
    */
-  private async refreshTenantSchemaCache(): Promise<void> {
+  private async initializeTenantManagement() {
     try {
-      const result = await this.mainPool.query('SELECT tenant_id, tenant_name FROM tenant_management.tenants');
+      const client = await this.defaultPool.connect();
       
-      // Clear existing cache
-      this.tenantSchemaCache.clear();
+      // Try to create tenants table - if permission denied, skip but continue
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS tenants (
+            id VARCHAR(255) PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            schema_name VARCHAR(255) NOT NULL UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            active BOOLEAN DEFAULT true
+          )
+        `);
+        
+        // Create default tenant if it doesn't exist
+        await client.query(`
+          INSERT INTO tenants (id, name, schema_name) 
+          VALUES ('default', 'Default Tenant', 'public')
+          ON CONFLICT (id) DO NOTHING
+        `);
+        
+        console.log('✅ Tenant management schema initialized');
+      } catch (schemaError: any) {
+        if (schemaError.code === '42501') { // Permission denied
+          console.log('⚠️  Tenant management schema creation skipped (insufficient permissions)');
+          console.log('   Application will use default schema without tenant isolation');
+        } else {
+          throw schemaError; // Re-throw if it's not a permission error
+        }
+      }
       
-      // Populate cache with tenant ID to schema name mapping
-      result.rows.forEach((tenant: any) => {
-        const schemaName = `tenant_${tenant.tenant_id.replace(/-/g, '')}`;
-        this.tenantSchemaCache.set(tenant.tenant_id, schemaName);
-      });
+      client.release();
       
-      console.log(`Refreshed tenant schema cache with ${this.tenantSchemaCache.size} tenants`);
     } catch (error) {
-      console.error('Error refreshing tenant schema cache:', error);
+      console.error('❌ Failed to initialize tenant management:', error);
+      // Don't throw error - allow application to continue
+      console.log('⚠️  Continuing without tenant management features');
     }
   }
 
   /**
-   * Get tenant schema name from tenant ID
+   * Get tenant schema name
    */
-  async getTenantSchema(tenantId: string): Promise<string> {
-    // Check cache first
+  private async getTenantSchema(tenantId: string): Promise<string> {
     if (this.tenantSchemaCache.has(tenantId)) {
       return this.tenantSchemaCache.get(tenantId)!;
     }
     
-    // If not in cache, query the database
     try {
-      const result = await this.mainPool.query(
-        'SELECT tenant_id FROM tenant_management.tenants WHERE tenant_id = $1',
+      const client = await this.mainPool.connect();
+      const result = await client.query(
+        'SELECT schema_name FROM tenants WHERE id = $1 AND active = true',
         [tenantId]
       );
+      client.release();
       
       if (result.rows.length === 0) {
-        throw new Error(`Tenant not found with ID: ${tenantId}`);
+        throw new Error(`Tenant ${tenantId} not found or inactive`);
       }
       
-      // Format schema name and update cache
-      const schemaName = `tenant_${tenantId.replace(/-/g, '')}`;
+      const schemaName = result.rows[0].schema_name;
       this.tenantSchemaCache.set(tenantId, schemaName);
-      
       return schemaName;
+      
     } catch (error) {
-      console.error(`Error getting schema for tenant ${tenantId}:`, error);
+      console.error(`Error getting tenant schema for ${tenantId}:`, error);
       throw error;
     }
   }
@@ -145,6 +247,10 @@ class DatabaseManager {
    * Get connection pool for a tenant
    */
   async getTenantPool(tenantId: string): Promise<Pool> {
+    if (!this.isInitialized) {
+      throw new Error('Database Manager not initialized');
+    }
+    
     // Check if pool already exists
     if (this.tenantPools.has(tenantId)) {
       return this.tenantPools.get(tenantId)!;
@@ -153,14 +259,15 @@ class DatabaseManager {
     // Create new connection pool for tenant
     try {
       const pool = new Pool({
-        user: process.env.DB_USER || 'renx_admin',
-        host: process.env.DB_HOST || 'localhost',
-        database: process.env.DB_NAME || 'renx_db',
-        password: process.env.DB_PASSWORD || 'renx_password',
-        port: parseInt(process.env.DB_PORT || '5432'),
-        max: 10, // Maximum number of clients in the pool
-        idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-        connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection not established
+        user: this.defaultConfig.username,
+        host: this.defaultConfig.host,
+        database: this.defaultConfig.database,
+        password: this.defaultConfig.password,
+        port: this.defaultConfig.port,
+        ssl: this.defaultConfig.ssl ? { rejectUnauthorized: false } : false,
+        max: Math.min(10, this.defaultConfig.maxConnections), // Limit tenant pools
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
       });
       
       // Get schema name
@@ -182,90 +289,54 @@ class DatabaseManager {
   }
 
   /**
-   * Execute a query for a specific tenant
+   * Create a new tenant
    */
-  async queryForTenant(tenantId: string, text: string, params: any[] = []): Promise<any> {
-    try {
-      const pool = await this.getTenantPool(tenantId);
-      return await pool.query(text, params);
-    } catch (error) {
-      console.error(`Error executing query for tenant ${tenantId}:`, error);
-      throw error;
+  async createTenant(tenantId: string, tenantName: string): Promise<void> {
+    if (!this.isInitialized) {
+      throw new Error('Database Manager not initialized');
     }
-  }
-
-  /**
-   * Execute a transaction for a specific tenant
-   */
-  async transactionForTenant<T>(tenantId: string, callback: (client: any) => Promise<T>): Promise<T> {
-    const pool = await this.getTenantPool(tenantId);
-    const client = await pool.connect();
+    
+    const client = await this.mainPool.connect();
     
     try {
       await client.query('BEGIN');
-      const result = await callback(client);
+      
+      const schemaName = `tenant_${tenantId}`;
+      
+      // Create tenant record
+      await client.query(
+        'INSERT INTO tenants (id, name, schema_name) VALUES ($1, $2, $3)',
+        [tenantId, tenantName, schemaName]
+      );
+      
+      // Create schema
+      await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+      
       await client.query('COMMIT');
-      return result;
+      
+      // Clear cache
+      this.tenantSchemaCache.delete(tenantId);
+      
+      console.log(`✅ Tenant ${tenantId} created successfully`);
+      
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error(`Transaction failed for tenant ${tenantId}:`, error);
+      console.error(`Error creating tenant ${tenantId}:`, error);
       throw error;
+      
     } finally {
       client.release();
     }
   }
 
   /**
-   * Check health of all connections
-   */
-  private async checkConnections(): Promise<void> {
-    try {
-      // Check main pool
-      try {
-        await this.mainPool.query('SELECT 1');
-      } catch (error) {
-        console.error('Main connection pool health check failed:', error);
-        // Attempt to reconnect
-        await this.mainPool.end();
-        this.mainPool = new Pool({
-          user: process.env.DB_USER || 'renx_admin',
-          host: process.env.DB_HOST || 'localhost',
-          database: process.env.DB_NAME || 'renx_db',
-          password: process.env.DB_PASSWORD || 'renx_password',
-          port: parseInt(process.env.DB_PORT || '5432'),
-        });
-      }
-      
-      // Check tenant pools
-      const tenantPoolEntries = Array.from(this.tenantPools.entries());
-      for (const [tenantId, pool] of tenantPoolEntries) {
-        try {
-          await pool.query('SELECT 1');
-        } catch (error) {
-          console.error(`Connection pool for tenant ${tenantId} health check failed:`, error);
-          // Remove from cache to force recreation on next use
-          this.tenantPools.delete(tenantId);
-        }
-      }
-      
-      // Refresh tenant schema cache
-      await this.refreshTenantSchemaCache();
-    } catch (error) {
-      console.error('Error during connection health check:', error);
-    }
-  }
-
-  /**
-   * Get main pool for tenant management operations
-   */
-  getMainPool(): Pool {
-    return this.mainPool;
-  }
-
-  /**
    * Get database pool for a specific tenant or default
    */
   async getPool(tenantId: string = 'default'): Promise<Pool> {
+    if (!this.isInitialized) {
+      throw new Error('Database Manager not initialized');
+    }
+    
     if (tenantId === 'default' || tenantId === 'tenant_management') {
       return this.defaultPool;
     }
@@ -279,12 +350,18 @@ class DatabaseManager {
     const tenantConnectionString = this.getTenantConnectionString(tenantId);
     const pool = new Pool({
       connectionString: tenantConnectionString,
-      max: 10,
+      max: Math.min(10, this.defaultConfig.maxConnections),
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 5000,
+      ssl: this.defaultConfig.ssl ? { rejectUnauthorized: false } : false
     });
 
-    const client = postgres(tenantConnectionString);
+    const client = postgres(tenantConnectionString, {
+      ssl: this.defaultConfig.ssl ? { rejectUnauthorized: false } : false,
+      max: Math.min(10, this.defaultConfig.maxConnections),
+      idle_timeout: 30,
+      connect_timeout: 5
+    });
     const db = drizzle(client, { schema });
 
     this.tenantDatabases.set(tenantId, {
@@ -301,6 +378,10 @@ class DatabaseManager {
    * Get drizzle database instance for a tenant
    */
   async getDatabase(tenantId?: string): Promise<ReturnType<typeof drizzle>> {
+    if (!this.isInitialized) {
+      throw new Error('Database Manager not initialized');
+    }
+    
     if (!tenantId) {
       return this.defaultDb;
     }
@@ -312,14 +393,20 @@ class DatabaseManager {
 
     // Create new tenant database connection
     const tenantConnectionString = this.getTenantConnectionString(tenantId);
-    const client = postgres(tenantConnectionString);
+    const client = postgres(tenantConnectionString, {
+      ssl: this.defaultConfig.ssl ? { rejectUnauthorized: false } : false,
+      max: Math.min(10, this.defaultConfig.maxConnections),
+      idle_timeout: 30,
+      connect_timeout: 5
+    });
     const db = drizzle(client, { schema });
 
     const pool = new Pool({
       connectionString: tenantConnectionString,
-      max: 10,
+      max: Math.min(10, this.defaultConfig.maxConnections),
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 5000,
+      ssl: this.defaultConfig.ssl ? { rejectUnauthorized: false } : false
     });
 
     this.tenantDatabases.set(tenantId, {
@@ -333,165 +420,83 @@ class DatabaseManager {
   }
 
   /**
-   * Create tenant-specific database if needed
-   */
-  async createTenantDatabase(tenantId: string): Promise<void> {
-    const dbName = `renx_tenant_${tenantId}`;
-    
-    try {
-      // Use default connection to create new database
-      const client = await this.defaultPool.connect();
-      
-      try {
-        await client.query(`CREATE DATABASE "${dbName}"`);
-        console.log(`✅ Created database for tenant: ${tenantId}`);
-      } catch (error: any) {
-        if (error.code !== '42P04') { // Database already exists
-          throw error;
-        }
-      } finally {
-        client.release();
-      }
-
-      // Initialize schema for new tenant database
-      await this.initializeTenantSchema(tenantId);
-    } catch (error) {
-      console.error(`❌ Failed to create database for tenant ${tenantId}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Initialize schema for tenant database
-   */
-  private async initializeTenantSchema(tenantId: string): Promise<void> {
-    const db = await this.getDatabase(tenantId);
-    
-    // Run migrations or schema initialization here
-    // This would typically involve running CREATE TABLE statements
-    console.log(`✅ Initialized schema for tenant: ${tenantId}`);
-  }
-
-  /**
    * Get connection string for a specific tenant
    */
   private getTenantConnectionString(tenantId: string): string {
     const config = { ...this.defaultConfig };
     config.database = `renx_tenant_${tenantId}`;
     
-    return `postgresql://${config.username}:${config.password}@${config.host}:${config.port}/${config.database}${config.ssl ? '?ssl=true' : ''}`;
+    return this.buildConnectionString(config);
   }
 
   /**
-   * Parse connection string into config object
+   * Health check for all connections
    */
-  private parseConnectionString(connectionString: string): DatabaseConfig {
-    const url = new URL(connectionString);
+  private async checkConnections() {
+    if (!this.isInitialized) return;
     
+    try {
+      // Check main pool
+      const client = await this.defaultPool.connect();
+      await client.query('SELECT 1');
+      client.release();
+      
+      // Check tenant pools
+      for (const [tenantId, pool] of Array.from(this.tenantPools.entries())) {
+        try {
+          const tenantClient = await pool.connect();
+          await tenantClient.query('SELECT 1');
+          tenantClient.release();
+        } catch (error) {
+          console.error(`Health check failed for tenant ${tenantId}:`, error);
+        }
+      }
+      
+    } catch (error) {
+      console.error('Main database health check failed:', error);
+    }
+  }
+
+  /**
+   * Get connection status
+   */
+  getStatus() {
     return {
-      host: url.hostname,
-      port: parseInt(url.port) || 5432,
-      database: url.pathname.slice(1),
-      username: url.username,
-      password: url.password,
-      ssl: url.searchParams.get('ssl') === 'true' || url.searchParams.get('sslmode') === 'require',
-      maxConnections: 20
+      initialized: this.isInitialized,
+      config: {
+        host: this.defaultConfig.host,
+        port: this.defaultConfig.port,
+        database: this.defaultConfig.database,
+        ssl: this.defaultConfig.ssl
+      },
+      pools: {
+        main: this.mainPool.totalCount,
+        default: this.defaultPool.totalCount,
+        tenants: this.tenantPools.size
+      }
     };
   }
 
   /**
-   * Close all database connections
+   * Graceful shutdown
    */
-  async close(): Promise<void> {
+  async shutdown() {
+    console.log('🔄 Shutting down Database Manager...');
+    
     // Clear health check interval
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
     }
-
-    // Close all tenant pools
-    const tenantPoolEntries = Array.from(this.tenantPools.entries());
-    for (const [tenantId, pool] of tenantPoolEntries) {
-      try {
-        await pool.end();
-      } catch (error) {
-        console.error(`Error closing pool for tenant ${tenantId}:`, error);
-      }
-    }
-
-    // Close main pool
-    try {
-      await this.mainPool.end();
-    } catch (error) {
-      console.error('Error closing main pool:', error);
-    }
-  }
-
-  /**
-   * Close all database connections (alias for close)
-   */
-  async closeAll(): Promise<void> {
-    await this.defaultPool.end();
     
-    const tenantDbEntries = Array.from(this.tenantDatabases.entries());
-    for (const [tenantId, tenantDb] of tenantDbEntries) {
-      try {
-        await tenantDb.pool.end();
-        console.log(`✅ Closed database connection for tenant: ${tenantId}`);
-      } catch (error) {
-        console.error(`❌ Error closing database for tenant ${tenantId}:`, error);
-      }
-    }
+    // Close all pools
+    await Promise.all([
+      this.mainPool.end(),
+      this.defaultPool.end(),
+      ...Array.from(this.tenantPools.values()).map(pool => pool.end()),
+      ...Array.from(this.tenantDatabases.values()).map(db => db.pool.end())
+    ]);
     
-    this.tenantDatabases.clear();
-  }
-
-  /**
-   * Get health status of all database connections
-   */
-  async getHealthStatus(): Promise<{ 
-    status: 'healthy' | 'degraded' | 'unhealthy';
-    connections: { tenantId: string; status: string }[];
-  }> {
-    const connections: { tenantId: string; status: string }[] = [];
-    let healthyCount = 0;
-    
-    // Check default database
-    try {
-      const client = await this.defaultPool.connect();
-      await client.query('SELECT 1');
-      client.release();
-      connections.push({ tenantId: 'default', status: 'healthy' });
-      healthyCount++;
-    } catch (error) {
-      connections.push({ tenantId: 'default', status: 'unhealthy' });
-    }
-    
-    // Check tenant databases
-    const tenantDbEntries = Array.from(this.tenantDatabases.entries());
-    for (const [tenantId, tenantDb] of tenantDbEntries) {
-      try {
-        const client = await tenantDb.pool.connect();
-        await client.query('SELECT 1');
-        client.release();
-        connections.push({ tenantId, status: 'healthy' });
-        healthyCount++;
-      } catch (error) {
-        connections.push({ tenantId, status: 'unhealthy' });
-      }
-    }
-    
-    const totalConnections = connections.length;
-    let status: 'healthy' | 'degraded' | 'unhealthy';
-    
-    if (healthyCount === totalConnections) {
-      status = 'healthy';
-    } else if (healthyCount > 0) {
-      status = 'degraded';
-    } else {
-      status = 'unhealthy';
-    }
-    
-    return { status, connections };
+    console.log('✅ Database Manager shutdown complete');
   }
 }
 
@@ -499,12 +504,18 @@ class DatabaseManager {
 const dbManager = new DatabaseManager();
 
 // Legacy drizzle connection for backward compatibility
-const connectionString = process.env.DATABASE_URL || 'postgresql://renx_admin:renx_password@localhost:5432/renx_db';
-const client = postgres(connectionString);
-export const db = drizzle(client);
+const connectionString = process.env.DATABASE_URL || 
+  `postgresql://${getEnvVar('DB_USER', 'renx_admin')}:${getEnvVar('DB_PASSWORD', 'renx_password')}@${getEnvVar('DB_HOST', 'localhost')}:${getEnvVar('DB_PORT', '5432')}/${getEnvVar('DB_NAME', 'renx_db')}`;
 
-// Export the multi-tenant database manager
-export { dbManager };
+const client = postgres(connectionString, {
+  ssl: getEnvVar('DB_SSL', 'false').toLowerCase() === 'true' ? { rejectUnauthorized: false } : false,
+  max: parseInt(getEnvVar('DB_MAX_CONNECTIONS', '20')),
+  idle_timeout: 30,
+  connect_timeout: 5
+});
 
-// Export default for backward compatibility
-export default db;
+export const db = drizzle(client, { schema });
+
+// Export database manager and utilities
+export { dbManager, DatabaseManager, type DatabaseConfig, type TenantDatabase };
+export default dbManager;

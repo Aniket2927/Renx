@@ -4,6 +4,7 @@ interface MessageConfig {
   brokers: string[];
   clientId: string;
   groupId: string;
+  enabled?: boolean;
 }
 
 interface TenantMessage {
@@ -95,23 +96,33 @@ interface AuditEvent {
 }
 
 export class MessageService {
-  private kafka: Kafka;
-  private producer: Producer;
-  private consumer: Consumer;
+  private kafka?: Kafka;
+  private producer?: Producer;
+  private consumer?: Consumer;
   private handlers: Map<string, MessageHandler[]> = new Map();
   private isConnected = false;
+  private isEnabled = false;
 
   constructor(config: MessageConfig = {
     brokers: [process.env.KAFKA_BROKERS || 'localhost:9092'],
     clientId: 'renx-service',
-    groupId: 'renx-consumer-group'
+    groupId: 'renx-consumer-group',
+    enabled: process.env.KAFKA_ENABLED !== 'false'
   }) {
+    this.isEnabled = config.enabled !== false && process.env.KAFKA_ENABLED !== 'false';
+    
+    if (!this.isEnabled) {
+      console.log('📨 Message service (Kafka) disabled - running in standalone mode');
+      return;
+    }
+
+    try {
     this.kafka = new Kafka({
       clientId: config.clientId,
       brokers: config.brokers,
       retry: {
         initialRetryTime: 100,
-        retries: 8
+          retries: 3  // Reduced retry count to fail faster
       }
     });
 
@@ -127,10 +138,19 @@ export class MessageService {
       rebalanceTimeout: 60000,
       heartbeatInterval: 3000
     });
+    } catch (error) {
+      console.warn('Failed to initialize Kafka, running in standalone mode:', error);
+      this.isEnabled = false;
+    }
   }
 
   // Initialize connections
   async connect(): Promise<void> {
+    if (!this.isEnabled || !this.kafka || !this.producer || !this.consumer) {
+      console.log('📨 Kafka not enabled, skipping connection');
+      return;
+    }
+
     try {
       await Promise.all([
         this.producer.connect(),
@@ -138,20 +158,22 @@ export class MessageService {
       ]);
       
       this.isConnected = true;
-      console.log('Kafka producer and consumer connected successfully');
+      console.log('📨 Kafka producer and consumer connected successfully');
       
       // Start consuming messages
       await this.startConsuming();
     } catch (error) {
-      console.error('Kafka connection error:', error);
-      throw error;
+      console.warn('📨 Kafka connection failed, continuing without messaging:', error);
+      this.isEnabled = false;
+      this.isConnected = false;
+      // Don't throw - continue without Kafka
     }
   }
 
   // Publish message with tenant isolation
   async publish(topic: string, message: TenantMessage): Promise<boolean> {
-    if (!this.isConnected) {
-      console.warn('Kafka not connected, message not sent');
+    if (!this.isEnabled || !this.isConnected || !this.producer) {
+      console.debug('Message not sent (Kafka not available):', { topic, tenantId: message.tenantId });
       return false;
     }
 
@@ -172,13 +194,17 @@ export class MessageService {
 
       return true;
     } catch (error) {
-      console.error('Message publish error:', error);
+      console.warn('Message publish error:', error);
       return false;
     }
   }
 
   // Subscribe to messages with handler
   subscribe(topic: string, handler: MessageHandler): void {
+    if (!this.isEnabled) {
+      console.debug('Message subscription ignored (Kafka not available):', topic);
+      return;
+    }
     if (!this.handlers.has(topic)) {
       this.handlers.set(topic, []);
     }
@@ -282,7 +308,7 @@ export class MessageService {
 
   // Bulk publish
   async publishBatch(topic: string, messages: TenantMessage[]): Promise<boolean> {
-    if (!this.isConnected || messages.length === 0) {
+    if (!this.isEnabled || !this.isConnected || !this.producer || messages.length === 0) {
       return false;
     }
 
@@ -306,7 +332,7 @@ export class MessageService {
 
       // Send messages for each tenant topic
       const promises = Object.entries(messagesByTenant).map(([tenantTopic, msgs]) =>
-        this.producer.send({
+        this.producer!.send({
           topic: tenantTopic,
           messages: msgs
         })
@@ -354,7 +380,7 @@ export class MessageService {
       // In production, you'd need to manage topic subscriptions dynamically
       // For now, we'll subscribe to known patterns
       
-      await this.consumer.run({
+      await this.consumer!.run({
         eachMessage: async ({ topic, partition, message }: EachMessagePayload) => {
           try {
             if (!message.value) return;
@@ -390,6 +416,9 @@ export class MessageService {
 
   // Health check
   async healthCheck(): Promise<boolean> {
+    if (!this.isEnabled || !this.kafka) {
+      return false;
+    }
     try {
       const admin = this.kafka.admin();
       await admin.connect();
@@ -404,6 +433,9 @@ export class MessageService {
 
   // Create topics for tenant
   async createTenantTopics(tenantId: string): Promise<boolean> {
+    if (!this.isEnabled || !this.kafka) {
+      return false;
+    }
     try {
       const admin = this.kafka.admin();
       await admin.connect();
@@ -444,6 +476,9 @@ export class MessageService {
 
   // Delete topics for tenant
   async deleteTenantTopics(tenantId: string): Promise<boolean> {
+    if (!this.isEnabled || !this.kafka) {
+      return false;
+    }
     try {
       const admin = this.kafka.admin();
       await admin.connect();
@@ -478,6 +513,9 @@ export class MessageService {
 
   // Cleanup and close connections
   async disconnect(): Promise<void> {
+    if (!this.isEnabled || !this.producer || !this.consumer) {
+      return;
+    }
     try {
       await Promise.all([
         this.producer.disconnect(),

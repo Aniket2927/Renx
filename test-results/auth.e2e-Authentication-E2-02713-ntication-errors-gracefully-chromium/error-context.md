@@ -1,0 +1,51 @@
+# Page snapshot
+
+```yaml
+- banner:
+  - img
+  - heading "RenX AI" [level=1]
+  - paragraph: Neural Trading Platform
+  - link "Sign In":
+    - /url: /login
+  - link "Get Started":
+    - /url: /login
+- text: 🚀 Next-Generation Trading Platform
+- heading "Trade Smarter with AI-Powered Insights" [level=1]
+- paragraph: Experience the future of trading with our advanced AI algorithms, real-time market analysis, and intelligent risk management. Join thousands of successful traders worldwide.
+- link "Start Trading Now":
+  - /url: /login
+  - text: Start Trading Now
+  - img
+- button "Watch Demo"
+- text: 50,000+ Active Traders $2.5B+ Daily Volume 94% Success Rate 10,000+ Assets
+- heading "Powerful Features for Modern Traders" [level=2]
+- paragraph: Everything you need to succeed in today's markets, powered by cutting-edge technology.
+- img
+- text: AI-Powered Signals Advanced machine learning algorithms analyze market data to provide high-confidence trading signals.
+- img
+- text: Multi-Asset Trading Trade stocks, crypto, forex, and commodities from a single, unified platform.
+- img
+- text: Risk Management Automated risk controls and portfolio optimization to protect your investments.
+- img
+- text: Real-Time Analytics Live market data, technical indicators, and sentiment analysis at your fingertips.
+- img
+- text: Social Trading Follow top performers, copy strategies, and engage with the trading community.
+- img
+- text: Advanced Backtesting Test your strategies against historical data with comprehensive performance metrics.
+- heading "Ready to Transform Your Trading?" [level=2]
+- paragraph: Join thousands of traders who trust RenX AI for their investment success.
+- img
+- text: Free 30-day trial
+- img
+- text: No credit card required
+- img
+- text: Cancel anytime
+- link "Get Started Today":
+  - /url: /login
+  - text: Get Started Today
+  - img
+- contentinfo:
+  - paragraph: © 2024 RenX AI. All rights reserved. Built with advanced neural networks.
+- region "Notifications (F8)":
+  - list
+```

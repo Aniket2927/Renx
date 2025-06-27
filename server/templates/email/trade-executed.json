@@ -1,0 +1,15 @@
+{
+  "name": "trade-executed",
+  "subject": "Trade Executed: {{symbol}} {{orderType}}",
+  "html": "\n          <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n            <h1 style=\"color: #059669;\">Trade Executed Successfully</h1>\n            <div style=\"background: #f0fdf4; border-left: 4px solid #059669; padding: 20px; margin: 20px 0;\">\n              <h3>Order Details</h3>\n              <ul style=\"list-style: none; padding: 0;\">\n                <li><strong>Symbol:</strong> {{symbol}}</li>\n                <li><strong>Order Type:</strong> {{orderType}}</li>\n                <li><strong>Quantity:</strong> {{quantity}}</li>\n                <li><strong>Price:</strong> ${{price}}</li>\n                <li><strong>Total Value:</strong> ${{totalValue}}</li>\n                <li><strong>Executed At:</strong> {{timestamp}}</li>\n                <li><strong>Order ID:</strong> {{orderId}}</li>\n              </ul>\n            </div>\n            <p>Your order has been executed successfully. You can view the details in your trading history.</p>\n            <a href=\"{{portfolioUrl}}\" style=\"background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;\">View Portfolio</a>\n          </div>\n        ",
+  "variables": [
+    "symbol",
+    "orderType",
+    "quantity",
+    "price",
+    "totalValue",
+    "timestamp",
+    "orderId",
+    "portfolioUrl"
+  ]
+}

@@ -4,259 +4,247 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, DollarSign, BarChart3, PieChart, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
-export default function Portfolio() {
-  const { user, isAuthenticated } = useAuth();
+// Add proper type definitions
+interface PortfolioSummary {
+  totalValue: number;
+  dayChange: number;
+  dayChangePercent: number;
+  monthChange: number;
+  activePositions: number;
+  cashAvailable: number;
+  cashPercent: number;
+  sectors: string;
+  allocation: {
+    stocks: number;
+    etfs: number;
+    crypto: number;
+    cash: number;
+  };
+  riskMetrics: {
+    beta: number;
+    sharpeRatio: number;
+    maxDrawdown: number;
+    volatility: number;
+  };
+}
 
-  // Fetch user portfolios
-  const { data: portfolios = [] } = useQuery({
+interface Performance {
+  totalValue: number;
+  dayChange: number;
+  dayChangePercent: number;
+  monthChange: number;
+  cashAvailable: number;
+  cashPercent: number;
+}
+
+export default function Portfolio() {
+  const { isAuthenticated } = useAuth();
+
+  // Fetch user portfolios with real data
+  const { data: portfolios = [], isLoading: portfoliosLoading } = useQuery({
     queryKey: ["/api/portfolios"],
     enabled: isAuthenticated,
   });
 
-  // Fetch positions for default portfolio
-  const { data: positions = [] } = useQuery({
-    queryKey: ["/api/positions"],
+  // Fetch positions for default portfolio with real data
+  const { data: positions = [], isLoading: positionsLoading } = useQuery({
+    queryKey: ["/api/portfolio/positions"],
     enabled: isAuthenticated,
   });
 
-  // Fetch portfolio performance
-  const { data: performance = {} } = useQuery({
+  // Fetch portfolio summary with real data
+  const { data: portfolioSummary, isLoading: summaryLoading } = useQuery<PortfolioSummary>({
+    queryKey: ["/api/portfolio/summary"],
+    enabled: isAuthenticated,
+  });
+
+  // Fetch portfolio performance with real data  
+  const { data: performance, isLoading: performanceLoading } = useQuery<Performance>({
     queryKey: ["/api/portfolio/performance"],
     enabled: isAuthenticated,
   });
 
+  // Process data with proper type safety
   const portfolioList = Array.isArray(portfolios) ? portfolios : [];
-  const defaultPortfolio = portfolioList.find((p: any) => p.isDefault) || portfolioList[0] || null;
+  const positionsList = Array.isArray(positions) ? positions : [];
+
+  // Calculate derived values with fallbacks
+  const totalValue = portfolioSummary?.totalValue || performance?.totalValue || 0;
+  const dayChange = portfolioSummary?.dayChange || performance?.dayChange || 0;
+  const dayChangePercent = portfolioSummary?.dayChangePercent || performance?.dayChangePercent || 0;
+  const monthChange = portfolioSummary?.monthChange || performance?.monthChange || 0;
+  const activePositions = positionsList.length || portfolioSummary?.activePositions || 0;
+  const cashAvailable = portfolioSummary?.cashAvailable || performance?.cashAvailable || 0;
+  const cashPercent = portfolioSummary?.cashPercent || performance?.cashPercent || 0;
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
+  const formatPercent = (value: number) => {
+    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  };
+
+  const isLoading = portfoliosLoading || positionsLoading || summaryLoading || performanceLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8 p-6">
-      {/* Enhanced Portfolio Header */}
-      <div className="page-header">
+    <div className="space-y-6">
+      {/* Portfolio Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Portfolio Overview</h1>
-            <p className="text-muted-foreground">Track your investments and performance across all assets</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Portfolio</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Track your investments and performance with {activePositions} active positions 
+            across {portfolioSummary?.sectors || 'multiple'} sectors
+          </p>
           </div>
           <div className="flex items-center space-x-4">
-            <Badge className="badge-success">Real-time</Badge>
-            <div className="text-right">
-              <p className="text-sm text-muted-foreground">Last sync</p>
-              <p className="text-sm font-medium">Just now</p>
-            </div>
-          </div>
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            Real-time Data
+          </Badge>
         </div>
       </div>
 
-      {/* Enhanced Portfolio Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="stat-card group">
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center">
-                <DollarSign className="text-white" size={20} />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Value</CardTitle>
-                <Badge className="badge-success mt-1">+20.1%</Badge>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-3xl font-bold text-foreground">$125,430.67</div>
-              <div className="text-sm text-emerald-600 dark:text-emerald-400 font-semibold">+$20,234 this month</div>
+      {/* Portfolio Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Total Portfolio Value */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Portfolio Value</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalValue)}</div>
+            <div className={`text-xs flex items-center ${dayChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {dayChange >= 0 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+              {formatPercent(dayChangePercent)} today ({formatCurrency(dayChange)})
             </div>
           </CardContent>
         </Card>
 
-        <Card className="stat-card group">
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-                <TrendingUp className="text-white" size={20} />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-medium text-muted-foreground">Day Change</CardTitle>
-                <Badge className="badge-success mt-1">+2.4%</Badge>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">+$3,024.15</div>
-              <div className="text-sm text-emerald-600 dark:text-emerald-400 font-semibold">vs yesterday</div>
+        {/* Monthly Performance */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Monthly Performance</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(monthChange)}</div>
+            <div className={`text-xs flex items-center ${monthChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {monthChange >= 0 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+              This month's change
             </div>
           </CardContent>
         </Card>
 
-        <Card className="stat-card group">
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <BarChart3 className="text-white" size={20} />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-medium text-muted-foreground">Active Positions</CardTitle>
-                <Badge className="badge-info mt-1">Live</Badge>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-3xl font-bold text-foreground">12</div>
-              <div className="text-sm text-purple-600 dark:text-purple-400 font-semibold">across 8 sectors</div>
+        {/* Active Positions */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Positions</CardTitle>
+            <PieChart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{activePositions}</div>
+            <div className="text-xs text-muted-foreground">
+              Across multiple sectors
             </div>
           </CardContent>
         </Card>
 
-        <Card className="stat-card group">
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center">
-                <PieChart className="text-white" size={20} />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-medium text-muted-foreground">Cash Available</CardTitle>
-                <Badge className="badge-info mt-1">12.1%</Badge>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-3xl font-bold text-foreground">$15,240.30</div>
-              <div className="text-sm text-amber-600 dark:text-amber-400 font-semibold">of portfolio</div>
+        {/* Cash Available */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Cash Available</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(cashAvailable)}</div>
+            <div className="text-xs text-muted-foreground">
+              {cashPercent.toFixed(1)}% of portfolio
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Enhanced Holdings Section */}
-      <Card className="trading-card">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center space-x-2">
-              <BarChart3 className="text-primary" size={20} />
-              <span>Holdings</span>
-            </CardTitle>
-            <div className="flex items-center space-x-2">
-              <Badge className="badge-success">12 positions</Badge>
-              <select className="text-xs bg-background border border-border rounded-lg px-2 py-1">
-                <option>All Assets</option>
-                <option>Stocks</option>
-                <option>Crypto</option>
-                <option>ETFs</option>
-              </select>
-            </div>
-          </div>
+      {/* Asset Allocation */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Asset Allocation</CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
-          <div className="space-y-4">
-            {/* Sample Holdings */}
-            <div className="grid grid-cols-1 gap-4">
-              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-border/50 hover:bg-muted/50 transition-colors">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-                    <span className="text-white font-bold text-sm">AAPL</span>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">
+                {((portfolioSummary?.allocation?.stocks || 0) * 100).toFixed(0)}%
                   </div>
-                  <div>
-                    <div className="font-semibold text-foreground">Apple Inc.</div>
-                    <div className="text-sm text-muted-foreground">100 shares • Technology</div>
+              <div className="text-sm text-muted-foreground">Stocks</div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-semibold text-foreground">$17,550.00</div>
-                  <div className="text-sm text-emerald-600 dark:text-emerald-400">+$1,250 (+7.7%)</div>
-                </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {((portfolioSummary?.allocation?.etfs || 0) * 100).toFixed(0)}%
               </div>
-
-              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-border/50 hover:bg-muted/50 transition-colors">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
-                    <span className="text-white font-bold text-sm">TSLA</span>
+              <div className="text-sm text-muted-foreground">ETFs</div>
                   </div>
-                  <div>
-                    <div className="font-semibold text-foreground">Tesla Inc.</div>
-                    <div className="text-sm text-muted-foreground">50 shares • Electric Vehicles</div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-semibold text-foreground">$12,290.00</div>
-                  <div className="text-sm text-red-600 dark:text-red-400">-$890 (-6.8%)</div>
-                </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">
+                {((portfolioSummary?.allocation?.crypto || 0) * 100).toFixed(0)}%
               </div>
-
-              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-border/50 hover:bg-muted/50 transition-colors">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center">
-                    <span className="text-white font-bold text-sm">MSFT</span>
+              <div className="text-sm text-muted-foreground">Crypto</div>
                   </div>
-                  <div>
-                    <div className="font-semibold text-foreground">Microsoft Corp.</div>
-                    <div className="text-sm text-muted-foreground">75 shares • Technology</div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-semibold text-foreground">$30,922.50</div>
-                  <div className="text-sm text-emerald-600 dark:text-emerald-400">+$2,100 (+7.3%)</div>
-                </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-600">
+                {((portfolioSummary?.allocation?.cash || cashPercent) * 100).toFixed(0)}%
               </div>
+              <div className="text-sm text-muted-foreground">Cash</div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Enhanced Asset Allocation */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="trading-card">
+      {/* Risk Metrics */}
+      <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <PieChart className="text-primary" size={20} />
-              <span>Asset Allocation</span>
+          <CardTitle className="flex items-center">
+            <AlertTriangle className="h-5 w-5 mr-2" />
+            Risk Metrics
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl">
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">45%</div>
-                <div className="text-sm text-muted-foreground">Stocks</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-sm text-muted-foreground">Beta</div>
+              <span className="text-sm font-bold">{(portfolioSummary?.riskMetrics?.beta || 0).toFixed(2)}</span>
               </div>
-              <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl">
-                <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">25%</div>
-                <div className="text-sm text-muted-foreground">ETFs</div>
+            <div className="text-center">
+              <div className="text-sm text-muted-foreground">Sharpe Ratio</div>
+              <span className="text-sm font-bold">{(portfolioSummary?.riskMetrics?.sharpeRatio || 0).toFixed(2)}</span>
               </div>
-              <div className="text-center p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-xl">
-                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">20%</div>
-                <div className="text-sm text-muted-foreground">Crypto</div>
-              </div>
-              <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 rounded-xl">
-                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">10%</div>
-                <div className="text-sm text-muted-foreground">Cash</div>
+            <div className="text-center">
+              <div className="text-sm text-muted-foreground">Max Drawdown</div>
+              <span className="text-sm font-bold text-red-600">
+                {(portfolioSummary?.riskMetrics?.maxDrawdown || 0).toFixed(1)}%
+              </span>
+            </div>
+            <div className="text-center">
+              <div className="text-sm text-muted-foreground">Volatility</div>
+              <span className="text-sm font-bold">{(portfolioSummary?.riskMetrics?.volatility || 0).toFixed(1)}%</span>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        <Card className="trading-card">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <AlertTriangle className="text-primary" size={20} />
-              <span>Risk Metrics</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                <span className="text-sm font-medium">Beta</span>
-                <span className="text-sm font-bold">1.2</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                <span className="text-sm font-medium">Sharpe Ratio</span>
-                <span className="text-sm font-bold">1.8</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                <span className="text-sm font-medium">Max Drawdown</span>
-                <span className="text-sm font-bold text-red-600">-8.5%</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                <span className="text-sm font-medium">Volatility</span>
-                <span className="text-sm font-bold">15.2%</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }

@@ -69,6 +69,84 @@ export interface NewsItem {
   symbols?: string[];
 }
 
+interface TwelveDataResponse {
+  price?: string;
+  values?: Array<{
+    datetime: string;
+    open: string;
+    high: string;
+    low: string;
+    close: string;
+    volume: string;
+  }>;
+  [key: string]: any;
+}
+
+class TwelveDataAPI {
+  private apiKey: string;
+  private baseUrl = 'https://api.twelvedata.com';
+
+  constructor() {
+    this.apiKey = process.env.TWELVE_DATA_API_KEY || '';
+    if (!this.apiKey) {
+      console.warn('TwelveData API key not configured');
+    }
+  }
+
+  private async apiCall(endpoint: string, params: Record<string, any> = {}): Promise<TwelveDataResponse> {
+    try {
+      const url = `${this.baseUrl}/${endpoint}`;
+      const response = await fetch(url + '?' + new URLSearchParams({
+        ...params,
+        apikey: this.apiKey
+      }));
+
+      if (!response.ok) {
+        throw new Error(`TwelveData API error: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error calling Twelve Data API (${endpoint}):`, error);
+      throw error;
+    }
+  }
+
+  async getPrice(symbol: string): Promise<TwelveDataResponse> {
+    return this.apiCall('price', { symbol });
+  }
+
+  async getTimeSeries(symbol: string, interval = '1min', outputsize = 30): Promise<TwelveDataResponse> {
+    return this.apiCall('time_series', { symbol, interval, outputsize });
+  }
+
+  async getQuotes(symbols: string | string[]): Promise<TwelveDataResponse> {
+    const symbolString = Array.isArray(symbols) ? symbols.join(',') : symbols;
+    return this.apiCall('quote', { symbol: symbolString });
+  }
+
+  async getIndicator(
+    symbol: string, 
+    indicator: string, 
+    interval = '1day', 
+    outputsize = 30, 
+    params: Record<string, any> = {}
+  ): Promise<TwelveDataResponse> {
+    return this.apiCall(indicator, {
+      symbol,
+      interval,
+      outputsize,
+      ...params
+    });
+  }
+
+  async getSymbols(exchange = 'NASDAQ'): Promise<TwelveDataResponse> {
+    return this.apiCall('stocks', { exchange });
+  }
+}
+
+export const twelveDataAPI = new TwelveDataAPI();
+
 export class MarketDataService {
   private apiKey: string;
   private baseUrl: string;
@@ -297,7 +375,7 @@ export class MarketDataService {
   }
 
   private getMockCryptoQuote(symbol: string): CryptoQuote {
-    const basePrice = symbol === 'BTC' ? 45000 : symbol === 'ETH' ? 3000 : Math.random() * 100;
+    const basePrice = symbol === 'BTC' ? 45000 : symbol === 'ETH' ? 3344 : Math.random() * 100;
     const change = (Math.random() - 0.5) * basePrice * 0.1;
     
     return {
@@ -365,6 +443,101 @@ export class MarketDataService {
     if (score > 0.1) return 'positive';
     if (score < -0.1) return 'negative';
     return 'neutral';
+  }
+
+  /**
+   * Get real market data for multiple symbols using TwelveData API
+   */
+  async getMarketData(symbols: string[]): Promise<StockQuote[]> {
+    try {
+      const results = await Promise.all(
+        symbols.map(symbol => this.getStockQuote(symbol))
+      );
+      return results;
+    } catch (error) {
+      console.error('Error getting market data:', error);
+      // Return mock data for demo if API fails
+      return symbols.map(symbol => this.getMockStockQuote(symbol));
+    }
+  }
+
+  /**
+   * Get historical data using TwelveData API
+   */
+  async getHistoricalData(symbol: string, interval: string = '1day', outputsize: number = 30): Promise<any> {
+    try {
+      const data = await twelveDataAPI.getTimeSeries(symbol, interval, outputsize);
+      return data;
+    } catch (error) {
+      console.error(`Error getting historical data for ${symbol}:`, error);
+      // Return mock historical data if API fails
+      const quote = this.getMockStockQuote(symbol);
+      return {
+        values: Array.from({ length: outputsize }, (_, i) => ({
+          datetime: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+          open: (quote.price * (0.98 + Math.random() * 0.04)).toFixed(2),
+          high: (quote.price * (1.01 + Math.random() * 0.02)).toFixed(2),
+          low: (quote.price * (0.97 + Math.random() * 0.02)).toFixed(2),
+          close: (quote.price * (0.99 + Math.random() * 0.02)).toFixed(2),
+          volume: Math.floor(quote.volume * (0.8 + Math.random() * 0.4)).toString()
+        })).reverse()
+      };
+    }
+  }
+
+  /**
+   * Get real-time quote using TwelveData API with fallback to Alpha Vantage
+   */
+  async getRealTimeQuote(symbol: string): Promise<StockQuote> {
+    try {
+      // Try TwelveData first
+      const twelveDataQuote = await twelveDataAPI.getPrice(symbol);
+      if (twelveDataQuote.price) {
+        return {
+          symbol,
+          price: parseFloat(twelveDataQuote.price),
+          change: 0, // TwelveData price endpoint doesn't include change
+          changePercent: 0,
+          volume: 0
+        };
+      }
+      
+      // Fallback to full quote
+      return await this.getStockQuote(symbol);
+    } catch (error) {
+      console.error(`Error getting real-time quote for ${symbol}:`, error);
+      return this.getMockStockQuote(symbol);
+    }
+  }
+
+  /**
+   * Search symbols using TwelveData API
+   */
+  async searchSymbols(query: string, limit: number = 10): Promise<{ symbol: string; name: string; type: string; region: string }[]> {
+    try {
+      const data = await twelveDataAPI.getSymbols();
+      // Filter results based on query (this is a simplified implementation)
+      if (data && Array.isArray(data)) {
+        return data
+          .filter((item: any) => 
+            item.symbol?.toLowerCase().includes(query.toLowerCase()) ||
+            item.name?.toLowerCase().includes(query.toLowerCase())
+          )
+          .slice(0, limit)
+          .map((item: any) => ({
+            symbol: item.symbol,
+            name: item.name || item.symbol,
+            type: item.type || 'stock',
+            region: item.exchange || 'US'
+          }));
+      }
+      
+      // Fallback to existing search method
+      return await this.searchStocks(query, limit);
+    } catch (error) {
+      console.error('Error searching symbols:', error);
+      return await this.searchStocks(query, limit);
+    }
   }
 }
 

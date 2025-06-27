@@ -1,0 +1,13 @@
+{
+  "name": "security-alert",
+  "subject": "Security Alert: {{alertType}}",
+  "html": "\n          <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n            <h1 style=\"color: #dc2626;\">Security Alert</h1>\n            <div style=\"background: #fef2f2; border-left: 4px solid #dc2626; padding: 20px; margin: 20px 0;\">\n              <h3>{{alertType}}</h3>\n              <p><strong>IP Address:</strong> {{ipAddress}}</p>\n              <p><strong>Location:</strong> {{location}}</p>\n              <p><strong>User Agent:</strong> {{userAgent}}</p>\n              <p><strong>Time:</strong> {{timestamp}}</p>\n            </div>\n            <p>If this was not you, please secure your account immediately and contact support.</p>\n            <a href=\"{{securityUrl}}\" style=\"background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;\">Review Security Settings</a>\n          </div>\n        ",
+  "variables": [
+    "alertType",
+    "ipAddress",
+    "location",
+    "userAgent",
+    "timestamp",
+    "securityUrl"
+  ]
+}

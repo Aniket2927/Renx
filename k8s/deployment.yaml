@@ -21,7 +21,7 @@ spec:
       - name: renx-app
         image: renx/renx-app:latest
         ports:
-        - containerPort: 3000
+        - containerPort: 3344
           name: http
         - containerPort: 8181
           name: ai-api
@@ -58,13 +58,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 3000
+            port: 3344
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /ready
-            port: 3000
+            port: 3344
           initialDelaySeconds: 5
           periodSeconds: 5
         volumeMounts:

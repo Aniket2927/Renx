@@ -1,4 +1,4 @@
-const AI_BACKEND_URL = process.env.REACT_APP_AI_BACKEND_URL || 'http://localhost:8000';
+const AI_BACKEND_URL = import.meta.env.VITE_AI_BACKEND_URL || 'http://localhost:8181';
 
 class AIService {
   async getPrediction(symbol, history) {

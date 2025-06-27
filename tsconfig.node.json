@@ -6,8 +6,13 @@
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "strict": true,
-    "noEmit": true,
+    "noEmit": false,
+    "outDir": "./dist/server",
+    "rootDir": ".",
+    "target": "ES2018",
+    "downlevelIteration": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "server/**/*"]
+  "include": ["vite.config.ts", "server/**/*", "shared/**/*"],
+  "exclude": ["server/**/*.test.ts", "server/**/*.spec.ts"]
 } 

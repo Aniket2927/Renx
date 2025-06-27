@@ -210,28 +210,50 @@ BEGIN
             FOREIGN KEY (portfolio_id) REFERENCES %I.portfolios(id)
         )', schema_name, schema_name);
     
+    -- Create trades table
+    EXECUTE format('
+        CREATE TABLE IF NOT EXISTS %I.trades (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            tenant_id VARCHAR(255) NOT NULL,
+            symbol VARCHAR(50) NOT NULL,
+            type VARCHAR(10) NOT NULL,
+            price DECIMAL(15,4) NOT NULL,
+            quantity DECIMAL(15,4) NOT NULL,
+            notes TEXT,
+            status VARCHAR(20) DEFAULT ''completed'',
+            trade_date TIMESTAMP DEFAULT NOW(),
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (user_id) REFERENCES %I.users(id),
+            CONSTRAINT valid_trade_type CHECK (type IN (''buy'', ''sell'')),
+            CONSTRAINT valid_trade_status CHECK (status IN (''pending'', ''completed'', ''cancelled''))
+        )', schema_name, schema_name);
+
     -- Create orders table
     EXECUTE format('
         CREATE TABLE IF NOT EXISTS %I.orders (
-            id VARCHAR(255) PRIMARY KEY,
-            portfolio_id VARCHAR(255) NOT NULL,
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            tenant_id VARCHAR(255) NOT NULL,
+            portfolio_id VARCHAR(255),
             symbol VARCHAR(50) NOT NULL,
-            side VARCHAR(10) NOT NULL,
+            type VARCHAR(10) NOT NULL,
             order_type VARCHAR(20) NOT NULL,
             quantity DECIMAL(15,4) NOT NULL,
             price DECIMAL(15,4),
             stop_price DECIMAL(15,4),
-            status VARCHAR(20) DEFAULT ''pending'',
+            status VARCHAR(20) DEFAULT ''active'',
             filled_quantity DECIMAL(15,4) DEFAULT 0,
             filled_price DECIMAL(15,4),
             time_in_force VARCHAR(10) DEFAULT ''day'',
-            tenant_id VARCHAR(255) NOT NULL,
-            user_id INTEGER NOT NULL,
             created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
             filled_at TIMESTAMP,
-            FOREIGN KEY (portfolio_id) REFERENCES %I.portfolios(id),
-            FOREIGN KEY (user_id) REFERENCES %I.users(id)
-        )', schema_name, schema_name, schema_name);
+            FOREIGN KEY (user_id) REFERENCES %I.users(id),
+            CONSTRAINT valid_order_type CHECK (type IN (''buy'', ''sell'')),
+            CONSTRAINT valid_order_status CHECK (status IN (''active'', ''filled'', ''cancelled'', ''rejected''))
+        )', schema_name, schema_name);
     
     -- Create audit_logs table
     EXECUTE format('
@@ -254,7 +276,10 @@ BEGIN
     EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_users_tenant_id ON %I.users(tenant_id)', REPLACE(schema_name, '-', '_'), schema_name);
     EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_portfolios_user_id ON %I.portfolios(user_id)', REPLACE(schema_name, '-', '_'), schema_name);
     EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_positions_portfolio_id ON %I.positions(portfolio_id)', REPLACE(schema_name, '-', '_'), schema_name);
-    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_orders_portfolio_id ON %I.orders(portfolio_id)', REPLACE(schema_name, '-', '_'), schema_name);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_trades_user_id ON %I.trades(user_id)', REPLACE(schema_name, '-', '_'), schema_name);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_trades_symbol ON %I.trades(symbol)', REPLACE(schema_name, '-', '_'), schema_name);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_orders_user_id ON %I.orders(user_id)', REPLACE(schema_name, '-', '_'), schema_name);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_orders_symbol ON %I.orders(symbol)', REPLACE(schema_name, '-', '_'), schema_name);
     EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_audit_logs_user_id ON %I.audit_logs(user_id)', REPLACE(schema_name, '-', '_'), schema_name);
     
     RETURN TRUE;

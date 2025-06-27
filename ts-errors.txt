@@ -1,0 +1,60 @@
+server/controllers/authController.ts(41,44): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/authController.ts(67,42): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/controllers/authController.ts(110,23): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/controllers/authController.ts(203,44): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/controllers/authController.ts(223,38): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/controllers/authController.ts(286,44): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/authController.ts(312,44): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/controllers/authController.ts(332,38): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/controllers/authController.ts(446,42): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/controllers/authController.ts(579,42): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/controllers/authController.ts(611,23): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(18,45): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(40,71): error TS7006: Parameter 'tenant' implicitly has an 'any' type.
+server/controllers/tenantController.ts(41,51): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(94,38): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(120,43): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(181,23): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(185,25): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(199,25): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(216,25): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(284,38): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(345,23): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(349,40): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(357,27): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(368,25): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(373,25): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(382,25): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(417,43): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(434,46): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(484,21): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(597,23): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(624,23): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(642,23): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/controllers/tenantController.ts(660,21): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/index.ts(141,13): error TS2304: Cannot find name 'auditService'.
+server/index.ts(154,13): error TS2304: Cannot find name 'auditService'.
+server/routes.ts(1292,38): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/routes.ts(1311,37): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/routes.ts(1334,38): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/routes.ts(1355,38): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/routes.ts(1379,38): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/routes.ts(1402,41): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/routes.ts(1429,38): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/routes.ts(1449,38): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/routes.ts(1471,38): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/services/rbacService.ts(98,38): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/services/rbacService.ts(138,40): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/services/rbacService.ts(177,23): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/services/rbacService.ts(204,23): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/services/rbacService.ts(231,23): error TS2339: Property 'transactionForTenant' does not exist on type 'DatabaseManager'.
+server/services/rbacService.ts(231,61): error TS7006: Parameter 'client' implicitly has an 'any' type.
+server/services/rbacService.ts(270,38): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/services/rbacService.ts(314,44): error TS2339: Property 'getMainPool' does not exist on type 'DatabaseManager'.
+server/services/rbacService.ts(357,38): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/services/rbacService.ts(375,38): error TS2339: Property 'queryForTenant' does not exist on type 'DatabaseManager'.
+server/services/sentimentAnalysisService.ts(105,22): error TS2802: Type 'Set<string>' can only be iterated through when using the '--downlevelIteration' flag or with a '--target' of 'es2015' or higher.
+server/services/sentimentAnalysisService.ts(127,26): error TS2802: Type 'Set<string>' can only be iterated through when using the '--downlevelIteration' flag or with a '--target' of 'es2015' or higher.
+server/services/sentimentAnalysisService.ts(190,38): error TS2345: Argument of type '{ symbol: string; action: string; confidence: number; targetPrice: number; stopLoss: number; reasoning: string; technicalAnalysis: { sentiment: "positive" | "negative" | "neutral"; score: number; sources: number; }; ... 10 more ...; backtestAccuracy: number; }' is not assignable to parameter of type '{ symbol: string; currentPrice: string; assetClass: string; action: string; confidence: string; id?: string | undefined; createdAt?: Date | null | undefined; exchange?: string | null | undefined; ... 13 more ...; expiresAt?: Date | ... 1 more ... | undefined; }'.
+  Types of property 'currentPrice' are incompatible.
+    Type 'number' is not assignable to type 'string'.

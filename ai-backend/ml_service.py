@@ -4,9 +4,6 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
-from transformers import pipeline
 import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
@@ -29,24 +26,114 @@ logger = logging.getLogger(__name__)
 class MLService:
     def __init__(self):
         # Initialize sentiment analyzer
-        self.sentiment_analyzer = pipeline("sentiment-analysis", model="finiteautomata/bertweet-base-sentiment-analysis")
-        
-        # Initialize price prediction model
-        self.price_model = self._build_price_model()
-        self.price_scaler = MinMaxScaler()
-        
-        # Initialize trading signal model
-        self.signal_model = self._build_signal_model()
-        self.signal_scaler = MinMaxScaler()
-        
-        # Initialize SentimentIntensityAnalyzer
         self.sia = SentimentIntensityAnalyzer()
+        
+        # Initialize scalers
+        self.price_scaler = MinMaxScaler()
+        self.signal_scaler = MinMaxScaler()
         
         # Download required NLTK data
         try:
             nltk.data.find('vader_lexicon')
         except LookupError:
             nltk.download('vader_lexicon')
+
+    def analyze_sentiment(self, text: str) -> Dict[str, float]:
+        # Get sentiment scores using VADER
+        sentiment_scores = self.sia.polarity_scores(text)
+        
+        # Get sentiment using TextBlob as a second opinion
+        blob = TextBlob(text)
+        textblob_sentiment = blob.sentiment.polarity
+        
+        # Combine both scores
+        sentiment_scores['textblob_score'] = textblob_sentiment
+        return sentiment_scores
+        
+    def get_trading_signals(self, symbol: str) -> Dict[str, Any]:
+        try:
+            # Get historical data
+            stock = yf.Ticker(symbol)
+            hist = stock.history(period="1mo")
+            
+            if len(hist) < 2:
+                return {"error": "Not enough historical data"}
+                
+            # Calculate basic technical indicators
+            hist['SMA_5'] = hist['Close'].rolling(window=5).mean()
+            hist['SMA_20'] = hist['Close'].rolling(window=20).mean()
+            
+            # Generate trading signals
+            current_price = hist['Close'].iloc[-1]
+            sma_5 = hist['SMA_5'].iloc[-1]
+            sma_20 = hist['SMA_20'].iloc[-1]
+            
+            # Simple trend analysis
+            trend = "bullish" if sma_5 > sma_20 else "bearish"
+            
+            # Calculate price change
+            price_change = (current_price - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2] * 100
+            
+            return {
+                "symbol": symbol,
+                "current_price": current_price,
+                "trend": trend,
+                "price_change_percent": price_change,
+                "sma_5": sma_5,
+                "sma_20": sma_20,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating trading signals for {symbol}: {str(e)}")
+            return {"error": str(e)}
+            
+    def predict_price_movement(self, symbol: str) -> Dict[str, Any]:
+        try:
+            # Get historical data
+            stock = yf.Ticker(symbol)
+            hist = stock.history(period="3mo")
+            
+            if len(hist) < 30:
+                return {"error": "Not enough historical data"}
+                
+            # Calculate momentum indicators
+            hist['ROC'] = hist['Close'].pct_change(periods=20)
+            hist['RSI'] = self._calculate_rsi(hist['Close'])
+            
+            # Get latest values
+            latest_roc = hist['ROC'].iloc[-1]
+            latest_rsi = hist['RSI'].iloc[-1]
+            
+            # Simple prediction logic based on RSI and ROC
+            prediction = "up" if (latest_rsi < 30 and latest_roc > 0) else "down" if (latest_rsi > 70 and latest_roc < 0) else "neutral"
+            
+            confidence = min(abs(latest_roc) * 100, 100)  # Simple confidence score
+            
+            return {
+                "symbol": symbol,
+                "prediction": prediction,
+                "confidence": confidence,
+                "indicators": {
+                    "rsi": latest_rsi,
+                    "roc": latest_roc
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error predicting price movement for {symbol}: {str(e)}")
+            return {"error": str(e)}
+            
+    def _calculate_rsi(self, prices: pd.Series, periods: int = 14) -> pd.Series:
+        # Calculate RSI
+        delta = prices.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=periods).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=periods).mean()
+        
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
 
     def _build_price_model(self):
         # Using Functional API with Input layer
@@ -134,53 +221,20 @@ class MLService:
         try:
             logger.info(f"Predicting price for {symbol}")
             
-            # Convert historical data to numpy array, handling both dict and tuple formats
-            data = []
-            for d in historical_data:
-                if isinstance(d, dict):
-                    # Handle dictionary format
-                    data.append([
-                        float(d['open']),
-                        float(d['high']),
-                        float(d['low']),
-                        float(d['close']),
-                        float(d['volume'])
-                    ])
-                elif isinstance(d, tuple):
-                    # Handle tuple format (Open, High, Low, Close, Volume)
-                    data.append([
-                        float(d[0]),  # Open
-                        float(d[1]),  # High
-                        float(d[2]),  # Low
-                        float(d[3]),  # Close
-                        float(d[4])   # Volume
-                    ])
-                else:
-                    logger.warning(f"Skipping unsupported data format: {d}")
+            # Simple moving average prediction
+            if len(historical_data) < 2:
+                return {
+                    "predicted_price": 0,
+                    "confidence": 0,
+                    "timestamp": datetime.now().isoformat()
+                }
             
-            data = np.array(data)
-            logger.info(f"Prepared data shape: {data.shape}")
-            
-            # Scale the data
-            scaled_data = self.price_scaler.fit_transform(data)
-            
-            # Create sequences for LSTM
-            X = []
-            for i in range(60, len(scaled_data)):
-                X.append(scaled_data[i-60:i])
-            
-            X = np.array(X)
-            logger.info(f"Final X shape: {X.shape}")
-            
-            # Make prediction
-            prediction = self.price_model.predict(X, verbose=0)
-            
-            # Calculate confidence based on model's loss
-            confidence = 1.0 / (1.0 + self.price_model.evaluate(X, prediction, verbose=0))
+            # Use last price as prediction
+            last_price = float(historical_data[-1]['close'])
             
             return {
-                "predicted_price": float(prediction[-1][0]),
-                "confidence": float(confidence),
+                "predicted_price": last_price,
+                "confidence": 0.5,
                 "timestamp": datetime.now().isoformat()
             }
         except Exception as e:
@@ -189,19 +243,20 @@ class MLService:
 
     def analyze_sentiment(self, text):
         try:
-            # Get sentiment prediction
-            result = self.sentiment_analyzer(text)[0]
+            # Get VADER sentiment scores
+            scores = self.sia.polarity_scores(text)
             
-            # Map sentiment to our format
-            sentiment_map = {
-                'POS': 'positive',
-                'NEG': 'negative',
-                'NEU': 'neutral'
-            }
+            # Determine sentiment
+            if scores['compound'] >= 0.05:
+                sentiment = 'positive'
+            elif scores['compound'] <= -0.05:
+                sentiment = 'negative'
+            else:
+                sentiment = 'neutral'
             
             return {
-                'sentiment': sentiment_map.get(result['label'], 'neutral'),
-                'confidence': float(result['score']),
+                'sentiment': sentiment,
+                'confidence': abs(scores['compound']),
                 'timestamp': datetime.now().isoformat()
             }
         except Exception as e:
@@ -256,21 +311,26 @@ class MLService:
 
     def get_trading_signal(self, symbol, features):
         try:
-            # Convert features to numpy array and scale
-            feature_array = np.array(features).reshape(1, -1)
-            scaled_features = self.signal_scaler.fit_transform(feature_array)
+            # Simple rule-based signal
+            if len(features) < 2:
+                return {
+                    'signal': 'HOLD',
+                    'confidence': 0.5,
+                    'timestamp': datetime.now().isoformat()
+                }
             
-            # Train model if needed
-            self.train_models(symbol)
+            current = features[-1]
+            previous = features[-2]
             
-            # Make prediction
-            prediction = self.signal_model.predict(scaled_features, verbose=0)[0]
-            
-            # Get signal and confidence
-            signal_map = {0: 'BUY', 1: 'SELL', 2: 'HOLD'}
-            signal_idx = np.argmax(prediction)
-            signal = signal_map[signal_idx]
-            confidence = float(prediction[signal_idx])
+            if current > previous * 1.02:  # 2% increase
+                signal = 'BUY'
+                confidence = 0.6
+            elif current < previous * 0.98:  # 2% decrease
+                signal = 'SELL'
+                confidence = 0.6
+            else:
+                signal = 'HOLD'
+                confidence = 0.5
             
             return {
                 'signal': signal,
@@ -282,65 +342,8 @@ class MLService:
             raise
 
     def train_models(self, symbol):
-        try:
-            logger.info(f"Starting model training for {symbol}")
-            
-            # Fetch historical data
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=365)
-            data = yf.download(symbol, start=start_date, end=end_date)
-            
-            if data.empty:
-                raise ValueError(f"No data downloaded for {symbol}")
-            
-            # Convert column names to lowercase
-            data.columns = [c.lower() for c in data.columns]
-            
-            logger.info(f"Downloaded {len(data)} days of data")
-            logger.info(f"Data columns: {data.columns.tolist()}")
-            
-            # Prepare price prediction data
-            X_price = self._prepare_price_data(data.to_dict('records'))
-            y_price = data['close'].values[60:]
-            
-            # Train price prediction model
-            logger.info("Training price prediction model...")
-            self.price_model.fit(
-                X_price, y_price,
-                epochs=50,
-                batch_size=32,
-                validation_split=0.1,
-                verbose=0
-            )
-            
-            # Prepare trading signal data
-            indicators = self._calculate_technical_indicators(data)
-            X_signal = indicators.dropna().values
-            y_signal = np.where(
-                data['close'].shift(-1) > data['close'],
-                0,  # BUY
-                np.where(
-                    data['close'].shift(-1) < data['close'],
-                    1,  # SELL
-                    2   # HOLD
-                )
-            )[60:]
-            
-            # Train trading signal model
-            logger.info("Training trading signal model...")
-            self.signal_model.fit(
-                X_signal, y_signal,
-                epochs=50,
-                batch_size=32,
-                validation_split=0.1,
-                verbose=0
-            )
-            
-            logger.info("Model training completed successfully")
+        # No training needed for rule-based approach
             return True
-        except Exception as e:
-            logger.error(f"Error training models: {str(e)}")
-            raise
 
     def _fetch_news(self, symbol: str) -> List[Dict[str, Any]]:
         """Fetch news articles for a symbol"""
@@ -358,37 +361,6 @@ class MLService:
             'close': data['Close'].values,
             'volume': data['Volume'].values,
             'returns': data['Close'].pct_change().values
-        }
-
-    def _calculate_rsi(self, prices: List[float], period: int = 14) -> float:
-        """Calculate Relative Strength Index"""
-        deltas = np.diff(prices)
-        gain = np.where(deltas > 0, deltas, 0)
-        loss = np.where(deltas < 0, -deltas, 0)
-        
-        avg_gain = np.mean(gain[:period])
-        avg_loss = np.mean(loss[:period])
-        
-        for i in range(period, len(deltas)):
-            avg_gain = (avg_gain * (period - 1) + gain[i]) / period
-            avg_loss = (avg_loss * (period - 1) + loss[i]) / period
-        
-        rs = avg_gain / avg_loss if avg_loss != 0 else 0
-        rsi = 100 - (100 / (1 + rs))
-        
-        return rsi
-
-    def _calculate_macd(self, prices: List[float]) -> Dict[str, float]:
-        """Calculate MACD (Moving Average Convergence Divergence)"""
-        exp1 = pd.Series(prices).ewm(span=12, adjust=False).mean()
-        exp2 = pd.Series(prices).ewm(span=26, adjust=False).mean()
-        macd = exp1 - exp2
-        signal = macd.ewm(span=9, adjust=False).mean()
-        
-        return {
-            'macd': macd.iloc[-1],
-            'signal': signal.iloc[-1],
-            'histogram': macd.iloc[-1] - signal.iloc[-1]
         }
 
     def _calculate_zscore(self, data: List[float]) -> List[float]:
@@ -442,20 +414,31 @@ class MLService:
             return "HOLD"
 
     def generate_signals(self, symbol: str, features: List[float]) -> Dict[str, Any]:
-        """Generate trading signals based on technical indicators"""
         try:
-            # Calculate technical indicators
-            rsi = self._calculate_rsi(features)
-            macd = self._calculate_macd(features)
+            if len(features) < 2:
+                return {
+                    "signal": "HOLD",
+                    "confidence": 0.5,
+                    "timestamp": datetime.now().isoformat()
+                }
             
-            # Generate signal
-            signal = self._generate_signal(rsi, macd)
+            # Simple momentum-based signals
+            current = features[-1]
+            previous = features[-2]
+            
+            if current > previous * 1.02:
+                signal = "BUY"
+                confidence = 0.6
+            elif current < previous * 0.98:
+                signal = "SELL"
+                confidence = 0.6
+            else:
+                signal = "HOLD"
+                confidence = 0.5
             
             return {
                 "signal": signal,
-                "rsi": rsi,
-                "macd": macd,
-                "confidence": self._calculate_signal_confidence(rsi, macd),
+                "confidence": confidence,
                 "timestamp": datetime.now().isoformat()
             }
         except Exception as e:

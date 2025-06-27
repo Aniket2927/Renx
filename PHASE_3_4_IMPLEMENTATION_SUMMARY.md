@@ -131,7 +131,7 @@ This document summarizes the successful implementation of **Phase 3 (Advanced An
 cd RENX
 cp .env.production .env
 ./deploy.sh latest production
-open http://localhost:3000
+open http://localhost:3344
 ```
 
 ### 📱 Mobile App Development

@@ -135,10 +135,10 @@ main() {
     
     # Check service endpoints
     echo -e "${BLUE}🌐 Service Health Checks:${NC}"
-    check_service "Frontend" "http://localhost:5173" "200"
-    check_service "Backend API" "http://localhost:3000/health" "200"
+    check_service "Frontend" "http://localhost:3344" "200"
+    check_service "Backend API" "http://localhost:3344/health" "200"
     check_service "AI Backend" "http://localhost:8181/health" "200"
-    check_service "Production App" "http://localhost:3000" "200"
+    check_service "Production App" "http://localhost:3344" "200"
     check_service "AI Production API" "http://localhost:8181" "200"
     
     # Check infrastructure

@@ -9,7 +9,7 @@ import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
 
 // Use default domains for local development if not provided
-const replitDomains = process.env.REPLIT_DOMAINS || "localhost:3000,127.0.0.1:3000";
+const replitDomains = process.env.REPLIT_DOMAINS || "localhost:3344,127.0.0.1:3344";
 if (!replitDomains) {
   throw new Error("Environment variable REPLIT_DOMAINS not provided");
 }

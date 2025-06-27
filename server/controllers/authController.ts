@@ -20,12 +20,17 @@ export class AuthController {
    */
   async login(req: Request, res: Response): Promise<void> {
     try {
-      const { tenantId, email, password }: AuthRequest = req.body;
+      let { tenantId, email, password }: AuthRequest = req.body;
 
-      if (!tenantId || !email || !password) {
+      // Default to demo_tenant if no tenant specified (for testing)
+      if (!tenantId) {
+        tenantId = 'demo_tenant';
+      }
+
+      if (!email || !password) {
         res.status(400).json({
           success: false,
-          message: 'Tenant ID, email, and password are required',
+          message: 'Email and password are required',
           code: 'MISSING_CREDENTIALS',
           timestamp: new Date().toISOString()
         });
@@ -33,8 +38,9 @@ export class AuthController {
       }
 
       // Validate tenant exists and is active
-      const tenantResult = await dbManager.getMainPool().query(
-        'SELECT status FROM tenant_management.tenants WHERE tenant_id = $1',
+      const pool = await dbManager.getPool();
+      const tenantResult = await pool.query(
+        'SELECT status FROM tenants WHERE id = $1 AND active = true',
         [tenantId]
       );
 
@@ -59,8 +65,8 @@ export class AuthController {
       }
 
       // Find user in tenant schema
-      const userResult = await dbManager.queryForTenant(
-        tenantId,
+      const userPool = await dbManager.getPool(tenantId);
+      const userResult = await userPool.query(
         `SELECT id, username, email, password, first_name, last_name, role, status, last_login 
          FROM users WHERE email = $1`,
         [email]
@@ -102,8 +108,7 @@ export class AuthController {
       }
 
       // Update last login
-      await dbManager.queryForTenant(
-        tenantId,
+      await userPool.query(
         'UPDATE users SET last_login = NOW() WHERE id = $1',
         [user.id]
       );
@@ -195,8 +200,8 @@ export class AuthController {
       }
 
       // Check if user already exists
-      const existingUser = await dbManager.queryForTenant(
-        tenantId,
+      const userPool = await dbManager.getPool(tenantId);
+      const existingUser = await userPool.query(
         'SELECT id FROM users WHERE email = $1 OR username = $2',
         [email, username]
       );
@@ -215,8 +220,7 @@ export class AuthController {
       const hashedPassword = await bcrypt.hash(password, 12);
 
       // Create user
-      const result = await dbManager.queryForTenant(
-        tenantId,
+      const result = await userPool.query(
         `INSERT INTO users (username, email, password, first_name, last_name, role, status, tenant_id, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
          RETURNING id, username, email, first_name, last_name, role, status, created_at`,
@@ -255,6 +259,128 @@ export class AuthController {
         success: false,
         message: 'Failed to register user',
         code: 'REGISTRATION_ERROR',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Public user signup (for new user registration)
+   */
+  async publicSignup(req: Request, res: Response): Promise<void> {
+    try {
+      const { tenantId, username, email, password, firstName, lastName } = req.body;
+
+      if (!tenantId || !username || !email || !password) {
+        res.status(400).json({
+          success: false,
+          message: 'Tenant ID, username, email, and password are required',
+          code: 'MISSING_REQUIRED_FIELDS',
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      // Validate tenant exists and is active
+      const pool = await dbManager.getPool();
+      const tenantResult = await pool.query(
+        'SELECT status FROM tenants WHERE id = $1 AND active = true',
+        [tenantId]
+      );
+
+      if (tenantResult.rows.length === 0) {
+        res.status(404).json({
+          success: false,
+          message: 'Tenant not found',
+          code: 'TENANT_NOT_FOUND',
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      if (tenantResult.rows[0].status !== 'active') {
+        res.status(403).json({
+          success: false,
+          message: 'Tenant is not active',
+          code: 'TENANT_INACTIVE',
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      // Check if user already exists
+      const userPool = await dbManager.getPool(tenantId);
+      const existingUser = await userPool.query(
+        'SELECT id FROM users WHERE email = $1 OR username = $2',
+        [email, username]
+      );
+
+      if (existingUser.rows.length > 0) {
+        res.status(409).json({
+          success: false,
+          message: 'User with this email or username already exists',
+          code: 'USER_EXISTS',
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      // Create user with 'user' role by default
+      const result = await userPool.query(
+        `INSERT INTO users (username, email, password, first_name, last_name, role, status, tenant_id, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+         RETURNING id, username, email, first_name, last_name, role, status, created_at`,
+        [username, email, hashedPassword, firstName, lastName, 'user', 'active', tenantId]
+      );
+
+      const newUser = result.rows[0];
+
+      // Get permissions for the new user
+      const permissions = await rbacService.getUserPermissions(tenantId, newUser.id);
+
+      // Generate tokens for immediate login
+      const accessToken = this.generateAccessToken(tenantId, newUser.id, newUser.role);
+      const refreshToken = this.generateRefreshToken(tenantId, newUser.id);
+
+      // Store refresh token
+      await this.storeRefreshToken(tenantId, newUser.id, refreshToken);
+
+      const enhancedUser: EnhancedUser = {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
+        firstName: newUser.first_name,
+        lastName: newUser.last_name,
+        role: newUser.role,
+        permissions,
+        status: newUser.status,
+        tenantId,
+        isActive: newUser.status === 'active',
+        createdAt: newUser.created_at.toISOString(),
+        updatedAt: newUser.created_at.toISOString()
+      };
+
+      const response: AuthResponse = {
+        success: true,
+        message: 'User registered successfully',
+        data: {
+          user: enhancedUser,
+          accessToken,
+          refreshToken,
+          expiresIn: this.parseExpirationTime(this.JWT_EXPIRES_IN)
+        }
+      };
+
+      res.status(201).json(response);
+    } catch (error) {
+      console.error('Public signup error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to register user',
+        code: 'SIGNUP_ERROR',
         timestamp: new Date().toISOString()
       });
     }
@@ -316,8 +442,8 @@ export class AuthController {
       }
 
       // Get user information
-      const userResult = await dbManager.queryForTenant(
-        tenantId,
+      const userPool = await dbManager.getPool(tenantId);
+      const userResult = await userPool.query(
         'SELECT id, role, status FROM users WHERE id = $1',
         [userId]
       );
@@ -371,8 +497,13 @@ export class AuthController {
       const tenantId = req.tenantId!;
       const userId = req.userId!;
 
-      const user = await rbacService.getUser(tenantId, userId);
-      if (!user) {
+      const pool = await dbManager.getPool();
+      const userResult = await pool.query(
+        'SELECT id, username, email, first_name, last_name, role, status, last_login FROM users WHERE id = $1',
+        [userId]
+      );
+
+      if (userResult.rows.length === 0) {
         res.status(404).json({
           success: false,
           message: 'User not found',
@@ -382,10 +513,28 @@ export class AuthController {
         return;
       }
 
+      const user = userResult.rows[0];
+
+             const enhancedUser: EnhancedUser = {
+         id: user.id,
+         username: user.username,
+         email: user.email,
+         firstName: user.first_name,
+         lastName: user.last_name,
+         role: user.role,
+         status: user.status,
+         tenantId,
+         isActive: user.status === 'active',
+         lastLoginAt: user.last_login?.toISOString(),
+         createdAt: new Date().toISOString(),
+         updatedAt: new Date().toISOString(),
+         permissions: [] // Add default empty permissions array
+       };
+
       res.json({
         success: true,
         message: 'User information retrieved successfully',
-        data: user,
+        data: enhancedUser,
         timestamp: new Date().toISOString()
       });
     } catch (error) {
@@ -449,8 +598,8 @@ export class AuthController {
       }
 
       // Get current user
-      const userResult = await dbManager.queryForTenant(
-        tenantId,
+      const pool = await dbManager.getPool(tenantId);
+      const userResult = await pool.query(
         'SELECT password FROM users WHERE id = $1',
         [userId]
       );
@@ -481,8 +630,7 @@ export class AuthController {
       const hashedNewPassword = await bcrypt.hash(newPassword, 12);
 
       // Update password
-      await dbManager.queryForTenant(
-        tenantId,
+      await pool.query(
         'UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2',
         [hashedNewPassword, userId]
       );

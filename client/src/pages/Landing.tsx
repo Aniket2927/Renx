@@ -73,10 +73,10 @@ export default function Landing() {
             
             <div className="flex items-center space-x-4">
               <Button variant="outline" asChild>
-                <a href="/api/login">Sign In</a>
+                <a href="/login">Sign In</a>
               </Button>
               <Button asChild>
-                <a href="/api/login">Get Started</a>
+                <a href="/login">Get Started</a>
               </Button>
             </div>
           </div>
@@ -104,7 +104,7 @@ export default function Landing() {
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
             <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700" asChild>
-              <a href="/api/login">
+              <a href="/login">
                 Start Trading Now
                 <ArrowRight className="ml-2 h-5 w-5" />
               </a>
@@ -192,7 +192,7 @@ export default function Landing() {
               </div>
               
               <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700" asChild>
-                <a href="/api/login">
+                <a href="/login">
                   Get Started Today
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </a>

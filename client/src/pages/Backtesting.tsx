@@ -183,7 +183,7 @@ export default function Backtesting() {
         title: "Backtest Complete",
         description: "Strategy backtesting completed successfully",
       });
-    }, 3000);
+    }, 3344);
   };
 
   const formatPercent = (value: number) => {

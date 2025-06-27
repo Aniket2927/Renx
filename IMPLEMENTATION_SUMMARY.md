@@ -58,8 +58,8 @@ GET  /api/ai/health            // AI backend health
 ```
 
 ### **Service Architecture**
-- **Frontend**: React + Vite (Port 5173)
-- **Backend**: Node.js + Express (Port 3000)  
+- **Frontend**: React + Vite (Port 3344)
+- **Backend**: Node.js + Express (Port 3344)  
 - **AI Backend**: Python + FastAPI (Port 8181)
 - **Database**: PostgreSQL + Redis
 

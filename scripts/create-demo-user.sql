@@ -24,25 +24,29 @@ INSERT INTO tenant_demo_tenant.users (
     'demo_tenant'
 ) ON CONFLICT (email) DO NOTHING;
 
--- Insert basic permissions for the demo tenant
-INSERT INTO tenant_demo_tenant.permissions (id, name, resource, action, description) VALUES
-('portfolio.read', 'Read Portfolios', 'portfolio', 'read', 'View portfolio information'),
-('portfolio.write', 'Write Portfolios', 'portfolio', 'write', 'Create and modify portfolios'),
-('trading.read', 'Read Trading', 'trading', 'read', 'View trading information'),
-('trading.write', 'Write Trading', 'trading', 'write', 'Execute trades'),
-('ai.read', 'Read AI Signals', 'ai', 'read', 'View AI analysis and signals'),
-('ai.write', 'Use AI Features', 'ai', 'write', 'Generate AI analysis')
-ON CONFLICT (id) DO NOTHING;
+-- Create super admin user
+INSERT INTO tenant_demo_tenant.users (
+    username, 
+    email, 
+    password, 
+    first_name, 
+    last_name, 
+    role, 
+    status, 
+    tenant_id
+) VALUES (
+    'superadmin',
+    'admin@renx.com',
+    '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- demo123
+    'Super',
+    'Admin',
+    'super_admin',
+    'active',
+    'demo_tenant'
+) ON CONFLICT (email) DO NOTHING;
 
--- Assign permissions to user role
-INSERT INTO tenant_demo_tenant.role_permissions (role, permission_id) VALUES
-('user', 'portfolio.read'),
-('user', 'portfolio.write'),
-('user', 'trading.read'),
-('user', 'trading.write'),
-('user', 'ai.read'),
-('user', 'ai.write')
-ON CONFLICT (role, permission_id) DO NOTHING;
+-- Insert default permissions using the tenant management function
+SELECT tenant_management.insert_default_permissions('demo_tenant');
 
 -- Create a default portfolio for the demo user
 INSERT INTO tenant_demo_tenant.portfolios (
@@ -53,12 +57,14 @@ INSERT INTO tenant_demo_tenant.portfolios (
     available_cash,
     is_default,
     tenant_id
-) VALUES (
-    'demo_portfolio_1',
-    'Demo Portfolio',
-    (SELECT id FROM tenant_demo_tenant.users WHERE email = 'demo@renx.com'),
-    50000.00,
-    50000.00,
+) SELECT 
+    'demo-portfolio-' || u.id,
+    'My Portfolio',
+    u.id,
+    10000.00,
+    10000.00,
     true,
     'demo_tenant'
-) ON CONFLICT (id) DO NOTHING; 
+FROM tenant_demo_tenant.users u 
+WHERE u.email = 'demo@renx.com'
+ON CONFLICT (id) DO NOTHING; 

@@ -1,44 +1,33 @@
 module.exports = {
-  preset: 'ts-jest',
   testEnvironment: 'node',
-  extensionsToTreatAsEsm: ['.ts', '.tsx'],
-  globals: {
-    'ts-jest': {
-      useESM: true
-    }
-  },
-  roots: ['<rootDir>/server', '<rootDir>/client/src'],
+  roots: ['<rootDir>/tests'],
   testMatch: [
-    '**/__tests__/**/*.+(ts|tsx|js)',
-    '**/*.(test|spec).+(ts|tsx|js)'
+    '**/tests/**/*.test.(ts|js)',
+    '**/tests/**/*.spec.(ts|js)',
+    '!**/tests/e2e/**/*',  // Exclude Playwright tests from Jest
   ],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', { useESM: true }]
+    '^.+\\.(js|jsx)$': 'babel-jest',
+    '^.+\\.(ts|tsx)$': 'ts-jest',
   },
+
+  globals: {
+    'ts-jest': {
+      useESM: true,
+    },
+  },
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   collectCoverageFrom: [
-    'server/**/*.{ts,tsx}',
-    'client/src/**/*.{ts,tsx}',
+    'server/**/*.{ts,js}',
+    'client/src/**/*.{ts,tsx,js,jsx}',
     '!**/*.d.ts',
     '!**/node_modules/**',
-    '!**/dist/**'
+    '!**/dist/**',
+    '!**/coverage/**',
   ],
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
-  moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/client/src/$1',
-    '\\.(css|less|scss|sass)$': 'identity-obj-proxy'
-  },
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
-  testTimeout: 10000,
-  projects: [
-    {
-      displayName: 'unit',
-      testMatch: ['<rootDir>/server/**/*.unit.test.ts'],
-      setupFilesAfterEnv: ['<rootDir>/jest.setup.js']
-    },
-    {
-      displayName: 'integration',
-      testMatch: ['<rootDir>/server/**/*.integration.test.ts'],
-      setupFilesAfterEnv: ['<rootDir>/jest.integration.setup.js']
-    }
-  ]
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
 }; 

@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import realTimeMarketService from "@/services/realTimeMarketService";
+import enhancedTradingService from "@/services/enhancedTradingService";
+import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +48,9 @@ interface Quote {
   low: number;
   open: number;
   marketCap?: number;
+  lastUpdate?: string;
+  source?: string;
+  previousClose?: number;
 }
 
 interface Order {
@@ -96,49 +102,61 @@ export default function Trading() {
   const [notes, setNotes] = useState("");
 
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const [realTimeQuote, setRealTimeQuote] = useState<Quote | null>(null);
+  
+  // Subscribe to real-time data for selected symbol
+  useEffect(() => {
+    const unsubscribe = realTimeMarketService.subscribe(selectedSymbol, (data: Quote) => {
+      setRealTimeQuote(data);
+    }, 5000); // Update every 5 seconds
+
+    return unsubscribe;
+  }, [selectedSymbol]);
 
   const { data: quote, isLoading: quoteLoading } = useQuery<Quote>({
     queryKey: ['/api/market/quote', selectedSymbol],
-    queryFn: async () => ({
-      symbol: selectedSymbol,
-      price: selectedSymbol === 'AAPL' ? 189.75 : selectedSymbol === 'TSLA' ? 245.30 : 892.45,
-      bid: selectedSymbol === 'AAPL' ? 189.70 : selectedSymbol === 'TSLA' ? 245.25 : 892.40,
-      ask: selectedSymbol === 'AAPL' ? 189.80 : selectedSymbol === 'TSLA' ? 245.35 : 892.50,
-      volume: Math.floor(Math.random() * 10000000),
-      change: selectedSymbol === 'AAPL' ? 2.45 : selectedSymbol === 'TSLA' ? -3.20 : 12.80,
-      changePercent: selectedSymbol === 'AAPL' ? 1.31 : selectedSymbol === 'TSLA' ? -1.29 : 1.45,
-      high: selectedSymbol === 'AAPL' ? 191.20 : selectedSymbol === 'TSLA' ? 248.90 : 895.60,
-      low: selectedSymbol === 'AAPL' ? 188.40 : selectedSymbol === 'TSLA' ? 243.10 : 887.20,
-      open: selectedSymbol === 'AAPL' ? 187.30 : selectedSymbol === 'TSLA' ? 248.50 : 879.65,
-      marketCap: selectedSymbol === 'AAPL' ? 2940000000000 : selectedSymbol === 'TSLA' ? 780000000000 : 2200000000000
-    }),
-    refetchInterval: 1000
+    queryFn: async () => {
+      if (realTimeQuote) {
+        return realTimeQuote;
+      }
+      // Fallback to batch quote if no real-time data
+      const quotes = await realTimeMarketService.getBatchQuotes([selectedSymbol]);
+      return quotes[0];
+    },
+    enabled: !!selectedSymbol,
+    refetchInterval: 10000 // Slower fallback polling
   });
 
   const { data: positions } = useQuery<Position[]>({
     queryKey: ['/api/positions'],
-    queryFn: async () => [
-      {
-        symbol: 'AAPL',
-        quantity: 100,
-        avgPrice: 185.20,
-        marketValue: 18975,
-        unrealizedPL: 455,
-        unrealizedPLPercent: 2.46,
-        dayPL: 245,
-        dayPLPercent: 1.31
-      },
-      {
-        symbol: 'TSLA',
-        quantity: 50,
-        avgPrice: 248.50,
-        marketValue: 12265,
-        unrealizedPL: -160,
-        unrealizedPLPercent: -1.29,
-        dayPL: -160,
-        dayPLPercent: -1.29
-      }
-    ]
+    queryFn: async () => {
+      // Get real market data for positions
+      const symbols = ['AAPL', 'TSLA'];
+      const quotes = await realTimeMarketService.getBatchQuotes(symbols);
+      
+      return symbols.map((symbol, index) => {
+        const quote = quotes[index];
+        const quantity = symbol === 'AAPL' ? 100 : 50;
+        const avgPrice = symbol === 'AAPL' ? 185.20 : 248.50;
+        const marketValue = quantity * quote.price;
+        const unrealizedPL = (quote.price - avgPrice) * quantity;
+        const unrealizedPLPercent = (unrealizedPL / (avgPrice * quantity)) * 100;
+        
+        return {
+          symbol,
+          quantity,
+          avgPrice,
+          marketValue,
+          unrealizedPL,
+          unrealizedPLPercent,
+          dayPL: quote.change * quantity,
+          dayPLPercent: quote.changePercent
+        };
+      });
+    },
+    refetchInterval: 10000 // Update every 10 seconds
   });
 
   const { data: orders } = useQuery<Order[]>({
@@ -184,22 +202,95 @@ export default function Trading() {
 
   const placeOrderMutation = useMutation({
     mutationFn: async (order: Order) => {
-      // Simulate API call
-      return new Promise(resolve => setTimeout(resolve, 1000));
+      const orderData = {
+        symbol: order.symbol,
+        side: order.side,
+        orderType: order.type,
+        quantity: order.quantity.toString(),
+        price: order.price?.toString(),
+        stopPrice: order.stopPrice?.toString(),
+        timeInForce: order.timeInForce,
+        portfolioId: 'default' // Default portfolio for demo
+      };
+
+      console.log('Submitting order:', orderData);
+      const result = await enhancedTradingService.placeOrder(orderData);
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Order placement failed');
+      }
+      
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      console.log('Order placed successfully:', result);
+      
+      // Show success toast
+      toast({
+        title: "Order Placed Successfully!",
+        description: result.message || `${orderSide.toUpperCase()} order for ${quantity} shares of ${selectedSymbol}`,
+        duration: 5000,
+      });
+      
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
       queryClient.invalidateQueries({ queryKey: ['/api/positions'] });
+      
       // Reset form
       setQuantity("");
       setPrice("");
       setStopPrice("");
       setNotes("");
+    },
+    onError: (error) => {
+      console.error('Order placement failed:', error);
+      
+      // Show error toast
+      toast({
+        title: "Order Failed",
+        description: error.message || "Failed to place order. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
     }
   });
 
   const handlePlaceOrder = () => {
-    if (!quote || !quantity) return;
+    // Validation
+    if (!quantity || quantity.trim() === '') {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a quantity for your order.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (parseInt(quantity) <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Quantity must be greater than 0.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (orderType !== 'market' && (!price || price.trim() === '')) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a price for limit orders.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if ((orderType === 'stop' || orderType === 'stop_limit') && (!stopPrice || stopPrice.trim() === '')) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a stop price for stop orders.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const order: Order = {
       symbol: selectedSymbol,
@@ -211,6 +302,7 @@ export default function Trading() {
       timeInForce
     };
 
+    console.log('Placing order:', order);
     placeOrderMutation.mutate(order);
   };
 
@@ -508,9 +600,16 @@ export default function Trading() {
                     <Activity className="w-5 h-5 text-green-500" />
                     <span>{selectedSymbol}</span>
                   </div>
-                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-                    Live
-                  </Badge>
+                  <div className="flex gap-2">
+                    <Badge className={`${quote?.change >= 0 ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'}`}>
+                      {quote?.source === 'TwelveData' ? 'Live TwelveData' : 'Live'}
+                    </Badge>
+                    {quote?.lastUpdate && (
+                      <Badge variant="outline" className="text-xs">
+                        {new Date(quote.lastUpdate).toLocaleTimeString()}
+                      </Badge>
+                    )}
+                  </div>
                 </CardTitle>
               </CardHeader>
               <CardContent>

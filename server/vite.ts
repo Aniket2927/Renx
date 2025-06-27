@@ -23,7 +23,7 @@ export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
-    allowedHosts: true,
+    allowedHosts: true as const,
   };
 
   const vite = await createViteServer({
@@ -72,18 +72,26 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(process.cwd(), "dist");
+  const clientPath = path.resolve(process.cwd(), "client");
 
-  if (!fs.existsSync(distPath)) {
+  if (!fs.existsSync(clientPath)) {
     throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
+      `Could not find the client directory: ${clientPath}`,
     );
   }
 
-  app.use(express.static(distPath));
+  // Serve static files from client/public (but skip index.html)
+  app.use(express.static(path.resolve(clientPath, "public"), {
+    index: false // Don't serve index.html from public directory
+  }));
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+  // fall through to the main index.html if the file doesn't exist
+  app.use("*", (req, res, next) => {
+    // Skip API routes
+    if (req.originalUrl.startsWith('/api/')) {
+      return next();
+    }
+    // Serve the main index.html from client root, not public
+    res.sendFile(path.resolve(clientPath, "index.html"));
   });
 }
