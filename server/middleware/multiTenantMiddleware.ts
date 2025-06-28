@@ -87,9 +87,9 @@ export const authenticateMultiTenant = async (
       
       if (!tenantContext) {
         // Handle demo mode - create mock tenant context
-        if (process.env.NODE_ENV === 'development' && decoded.tenantId === 'demo-tenant-1') {
+        if (process.env.NODE_ENV !== 'production' && decoded.tenantId === 'demo_tenant') {
           req.tenantContext = {
-            tenantId: 'demo-tenant-1',
+            tenantId: 'demo_tenant',
             tenantName: 'Demo Trading Firm',
             user: {
               id: decoded.userId,
@@ -157,7 +157,7 @@ export const authenticateMultiTenant = async (
       }
 
       // Log the request for audit (skip for demo mode)
-      if (!(process.env.NODE_ENV === 'development' && decoded.tenantId === 'demo-tenant-1')) {
+      if (!(process.env.NODE_ENV !== 'production' && decoded.tenantId === 'demo_tenant')) {
         await auditService.log({
           tenantId: decoded.tenantId,
           userId: decoded.userId,

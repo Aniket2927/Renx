@@ -37,7 +37,20 @@ export class AuthController {
       }
 
       // Get database pool for the tenant
-      const userPool = await dbManager.getPool(tenantId);
+      let userPool;
+      try {
+        userPool = await dbManager.getPool(tenantId);
+      } catch (error) {
+        console.error(`Failed to connect to tenant database ${tenantId}:`, error);
+        res.status(400).json({
+          success: false,
+          message: `Tenant '${tenantId}' not found. Please use 'demo_tenant' for demo access.`,
+          code: 'TENANT_NOT_FOUND',
+          timestamp: new Date().toISOString(),
+          availableTenants: ['demo_tenant']
+        });
+        return;
+      }
 
       // Find user with comprehensive validation
       const userResult = await userPool.query(
@@ -173,9 +186,7 @@ export class AuthController {
           user: enhancedUser,
           accessToken: tokenPair.accessToken,
           refreshToken: tokenPair.refreshToken,
-          expiresIn: tokenPair.expiresIn,
-          sessionId: session.id,
-          mfaEnabled
+          expiresIn: tokenPair.expiresIn
         }
       };
 
@@ -191,6 +202,102 @@ export class AuthController {
         timestamp: new Date().toISOString()
       });
     }
+  }
+
+  /**
+   * User registration
+   */
+  async register(req: Request, res: Response): Promise<void> {
+    try {
+      const { email, password, firstName, lastName, tenantId, username } = req.body;
+
+      if (!email || !password || !firstName || !lastName || !tenantId) {
+        res.status(400).json({
+          success: false,
+          message: 'All fields are required',
+          code: 'MISSING_FIELDS',
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      // Get database pool for the tenant
+      let userPool;
+      try {
+        userPool = await dbManager.getPool(tenantId);
+      } catch (error) {
+        console.error(`Failed to connect to tenant database ${tenantId}:`, error);
+        res.status(400).json({
+          success: false,
+          message: `Tenant '${tenantId}' not found. Please use 'demo_tenant' for demo access.`,
+          code: 'TENANT_NOT_FOUND',
+          timestamp: new Date().toISOString(),
+          availableTenants: ['demo_tenant']
+        });
+        return;
+      }
+
+      // Check if user already exists
+      const existingUserResult = await userPool.query(
+        'SELECT id FROM users WHERE email = $1',
+        [email.toLowerCase()]
+      );
+
+      if (existingUserResult.rows.length > 0) {
+        res.status(409).json({
+          success: false,
+          message: 'User already exists',
+          code: 'USER_EXISTS',
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      // Create user
+      const userResult = await userPool.query(
+        'INSERT INTO users (username, email, password, first_name, last_name, role, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username, email, first_name, last_name, role, status',
+        [username || email, email.toLowerCase(), hashedPassword, firstName, lastName, 'user', 'active']
+      );
+
+      const user = userResult.rows[0];
+
+      await auditService.logUserLogin(tenantId, user.id.toString(), true, req.ip, req.get('User-Agent'));
+
+      res.status(201).json({
+        success: true,
+        message: 'User registered successfully',
+        data: {
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            firstName: user.first_name,
+            lastName: user.last_name,
+            role: user.role,
+            status: user.status
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Registration error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to register user',
+        code: 'REGISTRATION_ERROR',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Public signup (similar to register but with different validation)
+   */
+  async publicSignup(req: Request, res: Response): Promise<void> {
+    // For now, just call register
+    await this.register(req, res);
   }
 
   /**

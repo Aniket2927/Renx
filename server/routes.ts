@@ -118,6 +118,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.userId;
       const tenantId = req.tenantId;
       
+      // For demo mode, return simplified user info
+      if (process.env.NODE_ENV !== 'production' && tenantId === 'demo_tenant') {
+        res.json({
+          user: req.user || {
+            id: userId,
+            email: req.auth?.email || 'demo@renx.ai',
+            firstName: 'Demo',
+            lastName: 'User',
+            role: req.auth?.role || 'admin',
+            status: 'active',
+            tenantId: tenantId
+          },
+          tenantContext: req.tenantContext,
+          userRoles: req.tenantContext?.userRoles || [{ name: 'Admin', permissions: ['all:*'] }],
+          permissions: req.tenantContext?.permissions || [{ resource: '*', action: '*' }]
+        });
+        return;
+      }
+      
       // Return user info with tenant context
       res.json({
         user: req.user,
@@ -225,12 +244,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Market indices endpoint for dashboard
   app.get('/api/market/indices', async (req, res) => {
     try {
-      // Get real market indices data
+      // Get real market indices data using TwelveData
       const indexSymbols = ['SPY', 'QQQ', 'IWM', 'VTI', 'DIA'];
+      console.log('🔍 Fetching real market indices data from TwelveData API...');
+      
       const indices = await Promise.all(
         indexSymbols.map(async (symbol) => {
           try {
             const quote = await marketDataService.getStockQuote(symbol);
+            console.log(`✅ Real data for ${symbol}: $${quote.price} (${quote.changePercent > 0 ? '+' : ''}${quote.changePercent}%)`);
             return {
               symbol: quote.symbol,
               price: quote.price,
@@ -239,7 +261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               volume: quote.volume
             };
           } catch (error) {
-            console.warn(`Failed to get quote for ${symbol}:`, error);
+            console.warn(`⚠️ Failed to get real quote for ${symbol}, using fallback:`, error);
             // Return fallback data if API fails
             return {
               symbol,
@@ -255,6 +277,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching market indices:", error);
       res.status(500).json({ message: "Failed to fetch market indices" });
+    }
+  });
+
+  // TwelveData API status endpoint
+  app.get('/api/market/api-status', authenticateMultiTenant, async (req, res) => {
+    try {
+      const hasApiKey = !!process.env.TWELVE_DATA_API_KEY;
+      let apiWorking = false;
+      let testData = null;
+
+      if (hasApiKey) {
+        try {
+          // Test the API with a simple quote
+          testData = await marketDataService.getStockQuote('AAPL');
+          apiWorking = testData && testData.price > 0;
+        } catch (error) {
+          console.error('TwelveData API test failed:', error);
+        }
+      }
+
+      res.json({
+        success: true,
+        twelveDataApi: {
+          configured: hasApiKey,
+          working: apiWorking,
+          apiKey: hasApiKey ? `${process.env.TWELVE_DATA_API_KEY?.substring(0, 8)}...` : 'Not configured',
+          testData: apiWorking ? {
+            symbol: testData?.symbol,
+            price: testData?.price,
+            source: 'TwelveData Real API'
+          } : null
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error checking API status:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to check API status',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 

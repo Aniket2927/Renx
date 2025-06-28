@@ -78,7 +78,27 @@ interface TwelveDataResponse {
     low: string;
     close: string;
     volume: string;
+    // Technical indicator fields
+    rsi?: string;
+    macd?: string;
+    macd_signal?: string;
+    macd_hist?: string;
+    [key: string]: any;
   }>;
+  // Quote response fields
+  symbol?: string;
+  close?: string;
+  change?: string;
+  percent_change?: string;
+  volume?: string;
+  high?: string;
+  low?: string;
+  fifty_two_week?: {
+    high?: string;
+    low?: string;
+  };
+  market_cap?: string;
+  error?: string;
   [key: string]: any;
 }
 
@@ -159,6 +179,29 @@ export class MarketDataService {
 
   async getStockQuote(symbol: string): Promise<StockQuote> {
     try {
+      // Try TwelveData API first (primary source)
+      const twelveDataQuote = await twelveDataAPI.getQuotes(symbol);
+      
+      if (twelveDataQuote && !twelveDataQuote.error) {
+        // Handle single quote response
+        const quote = Array.isArray(twelveDataQuote) ? twelveDataQuote[0] : twelveDataQuote;
+        
+        return {
+          symbol: quote.symbol || symbol,
+          price: parseFloat(quote.close || quote.price || 0),
+          change: parseFloat(quote.change || 0),
+          changePercent: parseFloat(quote.percent_change || 0),
+          volume: parseInt(quote.volume || 0),
+          high52Week: parseFloat(quote.fifty_two_week?.high || quote.high || 0),
+          low52Week: parseFloat(quote.fifty_two_week?.low || quote.low || 0)
+        };
+      }
+    } catch (error) {
+      console.warn(`TwelveData API failed for ${symbol}, trying Alpha Vantage fallback:`, error);
+    }
+
+    try {
+      // Fallback to Alpha Vantage API
       const response = await fetch(
         `${this.baseUrl}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${this.apiKey}`
       );
@@ -184,14 +227,37 @@ export class MarketDataService {
         low52Week: parseFloat(quote["04. low"])
       };
     } catch (error) {
-      console.error(`Error fetching stock quote for ${symbol}:`, error);
-      // Return mock data for demo purposes
+      console.error(`Both TwelveData and Alpha Vantage failed for ${symbol}:`, error);
+      // Only return mock data as last resort
+      console.warn(`Returning mock data for ${symbol} due to API failures`);
       return this.getMockStockQuote(symbol);
     }
   }
 
   async getCryptoQuote(symbol: string): Promise<CryptoQuote> {
     try {
+      // Try TwelveData API first for crypto
+      const cryptoSymbol = symbol.includes('/') ? symbol : `${symbol}/USD`;
+      const twelveDataQuote = await twelveDataAPI.getQuotes(cryptoSymbol);
+      
+      if (twelveDataQuote && !twelveDataQuote.error) {
+        const quote = Array.isArray(twelveDataQuote) ? twelveDataQuote[0] : twelveDataQuote;
+        
+        return {
+          symbol,
+          price: parseFloat(quote.close || quote.price || 0),
+          change: parseFloat(quote.change || 0),
+          changePercent: parseFloat(quote.percent_change || 0),
+          volume: parseInt(quote.volume || 0),
+          marketCap: quote.market_cap ? parseFloat(quote.market_cap) : undefined
+        };
+      }
+    } catch (error) {
+      console.warn(`TwelveData crypto API failed for ${symbol}, trying Alpha Vantage fallback:`, error);
+    }
+
+    try {
+      // Fallback to Alpha Vantage
       const response = await fetch(
         `${this.baseUrl}?function=CURRENCY_EXCHANGE_RATE&from_currency=${symbol}&to_currency=USD&apikey=${this.apiKey}`
       );
@@ -215,13 +281,36 @@ export class MarketDataService {
         volume: 0
       };
     } catch (error) {
-      console.error(`Error fetching crypto quote for ${symbol}:`, error);
+      console.error(`Both TwelveData and Alpha Vantage failed for crypto ${symbol}:`, error);
+      console.warn(`Returning mock data for ${symbol} due to API failures`);
       return this.getMockCryptoQuote(symbol);
     }
   }
 
   async getForexQuote(pair: string): Promise<ForexQuote> {
     try {
+      // Try TwelveData API first for forex
+      const twelveDataQuote = await twelveDataAPI.getQuotes(pair);
+      
+      if (twelveDataQuote && !twelveDataQuote.error) {
+        const quote = Array.isArray(twelveDataQuote) ? twelveDataQuote[0] : twelveDataQuote;
+        const price = parseFloat(quote.close || quote.price || 0);
+        
+        return {
+          symbol: pair,
+          price,
+          change: parseFloat(quote.change || 0),
+          changePercent: parseFloat(quote.percent_change || 0),
+          bid: price * 0.9999, // Realistic bid/ask spread
+          ask: price * 1.0001
+        };
+      }
+    } catch (error) {
+      console.warn(`TwelveData forex API failed for ${pair}, trying Alpha Vantage fallback:`, error);
+    }
+
+    try {
+      // Fallback to Alpha Vantage
       const [from, to] = pair.split('/');
       const response = await fetch(
         `${this.baseUrl}?function=CURRENCY_EXCHANGE_RATE&from_currency=${from}&to_currency=${to}&apikey=${this.apiKey}`
@@ -248,22 +337,65 @@ export class MarketDataService {
         ask: price * 1.0001
       };
     } catch (error) {
-      console.error(`Error fetching forex quote for ${pair}:`, error);
+      console.error(`Both TwelveData and Alpha Vantage failed for forex ${pair}:`, error);
+      console.warn(`Returning mock data for ${pair} due to API failures`);
       return this.getMockForexQuote(pair);
     }
   }
 
   async getTechnicalIndicators(symbol: string, interval: string = 'daily'): Promise<TechnicalIndicators> {
     try {
-      // Fetch RSI
-      const rsiResponse = await fetch(
-        `${this.baseUrl}?function=RSI&symbol=${symbol}&interval=${interval}&time_period=14&series_type=close&apikey=${this.apiKey}`
-      );
-      
-      // Fetch MACD
-      const macdResponse = await fetch(
-        `${this.baseUrl}?function=MACD&symbol=${symbol}&interval=${interval}&series_type=close&apikey=${this.apiKey}`
-      );
+      // Try TwelveData API first for technical indicators
+      const [rsiData, macdData] = await Promise.allSettled([
+        twelveDataAPI.getIndicator(symbol, 'rsi', '1day', 30, { time_period: 14 }),
+        twelveDataAPI.getIndicator(symbol, 'macd', '1day', 30)
+      ]);
+
+      let rsiValue = 50;
+      let macdValues = { macd: 0, signal: 0, histogram: 0 };
+
+      // Process RSI data
+      if (rsiData.status === 'fulfilled' && rsiData.value?.values) {
+        const latestRsi = rsiData.value.values[0];
+        rsiValue = parseFloat(latestRsi?.rsi || '50');
+      }
+
+      // Process MACD data
+      if (macdData.status === 'fulfilled' && macdData.value?.values) {
+        const latestMacd = macdData.value.values[0];
+        macdValues = {
+          macd: parseFloat(latestMacd?.macd || '0'),
+          signal: parseFloat(latestMacd?.macd_signal || '0'),
+          histogram: parseFloat(latestMacd?.macd_hist || '0')
+        };
+      }
+
+      return {
+        rsi: rsiValue,
+        macd: macdValues,
+        movingAverages: {
+          ma20: 0, // Would need separate API calls
+          ma50: 0,
+          ma200: 0
+        },
+        bollinger: {
+          upper: 0,
+          middle: 0,
+          lower: 0
+        },
+        volume: 0,
+        volatility: 0
+      };
+    } catch (error) {
+      console.warn(`TwelveData technical indicators failed for ${symbol}, trying Alpha Vantage fallback:`, error);
+    }
+
+    try {
+      // Fallback to Alpha Vantage API
+      const [rsiResponse, macdResponse] = await Promise.all([
+        fetch(`${this.baseUrl}?function=RSI&symbol=${symbol}&interval=${interval}&time_period=14&series_type=close&apikey=${this.apiKey}`),
+        fetch(`${this.baseUrl}?function=MACD&symbol=${symbol}&interval=${interval}&series_type=close&apikey=${this.apiKey}`)
+      ]);
       
       // Parse responses
       const rsiData = await rsiResponse.json();
@@ -297,7 +429,8 @@ export class MarketDataService {
         volatility: 0
       };
     } catch (error) {
-      console.error(`Error fetching technical indicators for ${symbol}:`, error);
+      console.error(`Both TwelveData and Alpha Vantage failed for technical indicators ${symbol}:`, error);
+      console.warn(`Returning mock technical indicators for ${symbol} due to API failures`);
       return this.getMockTechnicalIndicators();
     }
   }

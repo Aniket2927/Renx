@@ -29,6 +29,24 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
+    <script>
+      // Global error handler to prevent extension conflicts from breaking the app
+      window.addEventListener('error', function(e) {
+        if (e.filename && e.filename.includes('content_script') || e.filename.includes('extension')) {
+          console.warn('Browser extension error suppressed:', e.message);
+          e.preventDefault();
+          return true;
+        }
+      });
+      
+      // Handle unhandled promise rejections
+      window.addEventListener('unhandledrejection', function(e) {
+        if (e.reason && e.reason.message && e.reason.message.includes('content_script')) {
+          console.warn('Extension promise rejection suppressed:', e.reason);
+          e.preventDefault();
+        }
+      });
+    </script>
     <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.

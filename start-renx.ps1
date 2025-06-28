@@ -15,6 +15,10 @@ if (Test-Path "env-config.ps1") {
     $env:KAFKAJS_NO_PARTITIONER_WARNING = "1"
 }
 
+# Ensure TwelveData API key is set for all processes
+$env:TWELVE_DATA_API_KEY = "353ddad011164bea9e7d8aea53138956"
+Write-Host "📊 TwelveData API Key configured: ****$(($env:TWELVE_DATA_API_KEY).Substring($env:TWELVE_DATA_API_KEY.Length - 4))"
+
 # Function to check if port is in use
 function Check-Port {
     param (
@@ -100,7 +104,7 @@ Write-Host "🧠 Phase 1: Starting AI Backend (Python FastAPI)..."
 Write-Host "---------------------------------------------------"
 $env:AI_BACKEND_PORT = "8181"
 $env:AI_BACKEND_HOST = "0.0.0.0"
-$aiBackendCmd = "cd ai-backend; `$env:AI_BACKEND_PORT='8181'; `$env:AI_BACKEND_HOST='0.0.0.0'; .\venv\Scripts\activate; python main.py"
+$aiBackendCmd = "cd ai-backend; `$env:AI_BACKEND_PORT='8181'; `$env:AI_BACKEND_HOST='0.0.0.0'; .\venv_new\Scripts\activate; python main.py"
 Start-Service -serviceName "AI-Backend" -command $aiBackendCmd -port 8181
 
 Write-Host ""

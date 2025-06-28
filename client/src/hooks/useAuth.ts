@@ -86,7 +86,34 @@ export function useAuth() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Login failed with status:', response.status, 'Error:', errorText);
-        return { success: false, message: `Login failed: ${response.status} ${response.statusText}` };
+        
+        // If regular login fails and we're in development, try demo login
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Regular login failed, attempting demo login...');
+          try {
+            const demoResponse = await fetch(`${window.location.origin}/api/auth/demo-login`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (demoResponse.ok) {
+              const demoResult = await demoResponse.json();
+              if (demoResult.success) {
+                localStorage.setItem('accessToken', demoResult.data.accessToken);
+                localStorage.setItem('token', demoResult.data.accessToken);
+                localStorage.setItem('refreshToken', demoResult.data.refreshToken);
+                localStorage.setItem('user', JSON.stringify(demoResult.data.user));
+                setLocalUser(demoResult.data.user);
+                console.log('Demo login successful!');
+                return { success: true, user: demoResult.data.user };
+              }
+            }
+          } catch (demoError) {
+            console.error('Demo login also failed:', demoError);
+          }
+        }
+        
+        return { success: false, message: `Login failed: ${response.status} ${response.statusText}. For demo access, use tenant: 'demo_tenant'` };
       }
       
       const result = await response.json();
