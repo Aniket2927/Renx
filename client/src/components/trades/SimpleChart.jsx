@@ -1,127 +1,77 @@
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
-import { motion } from 'framer-motion';
+import marketDataService from '../../services/marketDataService';
 
-const ChartContainer = styled.div`
-  position: relative;
-  height: 300px;
-  width: 100%;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  overflow: hidden;
-`;
-
-const ChartSvg = styled.svg`
-  width: 100%;
-  height: 100%;
-`;
-
-const TimeControls = styled.div`
-  display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
-`;
-
-const TimeButton = styled.button`
-  background: ${props => props.active ? '#4f8cff' : 'rgba(79, 140, 255, 0.1)'};
-  color: ${props => props.active ? '#fff' : '#4f8cff'};
-  border: none;
-  border-radius: 6px;
-  padding: 5px 12px;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  
-  &:hover {
-    background: ${props => props.active ? '#4f8cff' : 'rgba(79, 140, 255, 0.2)'};
-  }
-`;
-
-const PriceLabel = styled.div`
-  position: absolute;
-  left: 10px;
-  top: 10px;
-  background: rgba(255, 255, 255, 0.8);
-  padding: 5px 10px;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #333;
-`;
-
-const DateLabel = styled.div`
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  background: rgba(255, 255, 255, 0.8);
-  padding: 5px 10px;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  color: #333;
-`;
-
-const ChartPoint = styled(motion.circle)`
-  fill: #4f8cff;
-  r: 4;
-`;
-
-const Tooltip = styled(motion.div)`
-  position: absolute;
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 5px 10px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  pointer-events: none;
-  transform: translate(-50%, -100%);
-  margin-top: -10px;
-  z-index: 2;
-`;
-
-// Generate random data
-const generateData = (points, min = 30000, max = 60000, volatility = 0.02) => {
-  const data = [];
-  let lastPrice = (min + max) / 2;
-  
-  for (let i = 0; i < points; i++) {
-    // Add some randomness to price movement
-    const change = lastPrice * (Math.random() * volatility * 2 - volatility);
-    lastPrice += change;
-    
-    // Keep within bounds
-    if (lastPrice < min) lastPrice = min + Math.random() * 1000;
-    if (lastPrice > max) lastPrice = max - Math.random() * 1000;
-    
-    const date = new Date();
-    date.setDate(date.getDate() - (points - i));
-    
-    data.push({
-      price: lastPrice,
-      date: date.toISOString().split('T')[0]
-    });
-  }
-  
-  return data;
-};
-
-const SimpleChart = () => {
+const SimpleChart = ({ symbol = 'AAPL' }) => {
   const [timeframe, setTimeframe] = useState('1m');
   const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   
   useEffect(() => {
-    // Generate data based on timeframe
-    const dataPoints = timeframe === '1d' ? 24 :
-                      timeframe === '1w' ? 7 :
-                      timeframe === '1m' ? 30 : 90;
-    
-    setData(generateData(dataPoints));
-  }, [timeframe]);
+    const fetchRealData = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Determine the interval and output size based on timeframe
+        const intervalMap = {
+          '1d': { interval: '1hour', outputSize: 24 },
+          '1w': { interval: '1day', outputSize: 7 },
+          '1m': { interval: '1day', outputSize: 30 },
+          '3m': { interval: '1day', outputSize: 90 }
+        };
+        
+        const { interval, outputSize } = intervalMap[timeframe];
+        
+        // Fetch real historical data
+        const historicalData = await marketDataService.getTimeSeries(symbol, interval, outputSize);
+        
+        // Transform data to the format expected by the chart
+        const chartData = historicalData.map((item, index) => ({
+          price: item.y[3], // Close price
+          date: new Date(item.x).toISOString().split('T')[0],
+          timestamp: item.x
+        }));
+        
+        setData(chartData);
+      } catch (err) {
+        console.error('Error fetching chart data:', err);
+        setError('Failed to load chart data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRealData();
+  }, [timeframe, symbol]);
+  
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+  
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-red-500">{error}</div>
+      </div>
+    );
+  }
   
   // Skip rendering if no data
   if (data.length === 0) {
-    return <div>Loading chart data...</div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-500">No data available</div>
+      </div>
+    );
   }
   
   // Calculate chart values
@@ -136,140 +86,125 @@ const SimpleChart = () => {
   const chartHeight = 100 - (padding * 2 / 3);
   
   // Generate path for line
-  const points = data.map((d, i) => {
-    // X position (percentage of width)
-    const x = padding + (i / (data.length - 1)) * chartWidth;
-    
-    // Y position (percentage of height, inverted)
-    const normalizedPrice = (d.price - minPrice) / range;
-    const y = 100 - (padding + normalizedPrice * chartHeight);
-    
-    return `${x},${y}`;
+  const pathData = data.map((point, index) => {
+    const x = (index / (data.length - 1)) * chartWidth + padding / 10;
+    const y = 100 - (((point.price - minPrice) / range) * chartHeight + padding / 3);
+    return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
   }).join(' ');
   
-  // Generate fill area
-  const fillPoints = `${points} ${padding + chartWidth},100 ${padding},100`;
-  
-  // Handle mouse over point
-  const handleMouseOver = (point, index, event) => {
-    setHoveredPoint(index);
-    
-    // Get position for tooltip
+  const handleMouseMove = (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
-    setTooltipPosition({
-      x: rect.left,
-      y: rect.top
-    });
+    const x = event.clientX - rect.left;
+    const pointIndex = Math.round((x / rect.width) * (data.length - 1));
+    
+    if (pointIndex >= 0 && pointIndex < data.length) {
+      setHoveredPoint(data[pointIndex]);
+      setTooltipPosition({ x: event.clientX, y: event.clientY });
+    }
   };
   
-  // Handle mouse leave
   const handleMouseLeave = () => {
     setHoveredPoint(null);
   };
   
+  const currentPrice = data[data.length - 1]?.price || 0;
+  const previousPrice = data[data.length - 2]?.price || currentPrice;
+  const priceChange = currentPrice - previousPrice;
+  const percentChange = previousPrice !== 0 ? (priceChange / previousPrice) * 100 : 0;
+  
   return (
-    <div>
-      <TimeControls>
-        <TimeButton 
-          active={timeframe === '1d'} 
-          onClick={() => setTimeframe('1d')}
-        >
-          1D
-        </TimeButton>
-        <TimeButton 
-          active={timeframe === '1w'} 
-          onClick={() => setTimeframe('1w')}
-        >
-          1W
-        </TimeButton>
-        <TimeButton 
-          active={timeframe === '1m'} 
-          onClick={() => setTimeframe('1m')}
-        >
-          1M
-        </TimeButton>
-        <TimeButton 
-          active={timeframe === '3m'} 
-          onClick={() => setTimeframe('3m')}
-        >
-          3M
-        </TimeButton>
-      </TimeControls>
+    <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800">{symbol} Price Chart</h3>
+          <div className="flex items-center space-x-2 mt-1">
+            <span className="text-2xl font-bold text-gray-900">
+              ${currentPrice.toFixed(2)}
+            </span>
+            <span className={`text-sm font-medium ${percentChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {percentChange >= 0 ? '+' : ''}{percentChange.toFixed(2)}%
+            </span>
+          </div>
+        </div>
+        
+        {/* Timeframe buttons */}
+        <div className="flex space-x-1">
+          {['1d', '1w', '1m', '3m'].map((tf) => (
+            <button
+              key={tf}
+              onClick={() => setTimeframe(tf)}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                timeframe === tf
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {tf.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
       
-      <ChartContainer>
-        <PriceLabel>
-          ${data[data.length - 1].price.toFixed(2)}
-          <span style={{ 
-            color: data[data.length - 1].price > data[data.length - 2].price ? '#2dff7a' : '#ff2d7a',
-            marginLeft: '5px'
-          }}>
-            {data[data.length - 1].price > data[data.length - 2].price ? '▲' : '▼'}
-          </span>
-        </PriceLabel>
-        
-        <DateLabel>
-          {data[0].date} - {data[data.length - 1].date}
-        </DateLabel>
-        
-        <ChartSvg viewBox="0 0 100 100" preserveAspectRatio="none">
-          {/* Background gradient */}
+      {/* Chart */}
+      <div className="relative h-48">
+        <svg
+          width="100%"
+          height="100%"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          className="cursor-crosshair"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+        >
+          {/* Grid lines */}
           <defs>
-            <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#4f8cff" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#4f8cff" stopOpacity="0.1" />
-            </linearGradient>
+            <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
+              <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#f0f0f0" strokeWidth="0.5"/>
+            </pattern>
           </defs>
+          <rect width="100" height="100" fill="url(#grid)" />
           
-          {/* Fill area under line */}
-          <polygon 
-            points={fillPoints} 
-            fill="url(#areaGradient)" 
-          />
-          
-          {/* Line */}
-          <polyline
-            points={points}
+          {/* Price line */}
+          <path
+            d={pathData}
             fill="none"
-            stroke="#4f8cff"
-            strokeWidth="0.5"
+            stroke="#3b82f6"
+            strokeWidth="0.8"
+            vectorEffect="non-scaling-stroke"
           />
           
           {/* Data points */}
-          {data.map((d, i) => {
-            // Calculate position
-            const x = padding + (i / (data.length - 1)) * chartWidth;
-            const normalizedPrice = (d.price - minPrice) / range;
-            const y = 100 - (padding + normalizedPrice * chartHeight);
-            
+          {data.map((point, index) => {
+            const x = (index / (data.length - 1)) * chartWidth + padding / 10;
+            const y = 100 - (((point.price - minPrice) / range) * chartHeight + padding / 3);
             return (
-              <ChartPoint
-                key={i}
+              <circle
+                key={index}
                 cx={x}
                 cy={y}
-                initial={{ r: 0 }}
-                animate={{ r: hoveredPoint === i ? 3 : 0 }}
-                onMouseOver={(e) => handleMouseOver(d, i, e)}
-                onMouseLeave={handleMouseLeave}
+                r="0.8"
+                fill="#3b82f6"
+                vectorEffect="non-scaling-stroke"
               />
             );
           })}
-        </ChartSvg>
+        </svg>
         
         {/* Tooltip */}
-        {hoveredPoint !== null && (
-          <Tooltip
+        {hoveredPoint && (
+          <div
+            className="fixed z-50 bg-gray-800 text-white px-3 py-2 rounded-lg shadow-lg text-sm pointer-events-none"
             style={{
-              left: tooltipPosition.x,
-              top: tooltipPosition.y
+              left: tooltipPosition.x + 10,
+              top: tooltipPosition.y - 40,
             }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
           >
-            <div>${data[hoveredPoint].price.toFixed(2)}</div>
-            <div>{data[hoveredPoint].date}</div>
-          </Tooltip>
+            <div className="font-semibold">${hoveredPoint.price.toFixed(2)}</div>
+            <div className="text-gray-300">{hoveredPoint.date}</div>
+          </div>
         )}
-      </ChartContainer>
+      </div>
     </div>
   );
 };

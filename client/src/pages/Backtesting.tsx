@@ -1,8 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Sidebar } from "@/components/Layout/Sidebar";
-import { Header } from "@/components/Layout/Header";
-import ThemeSelector from "@/components/Layout/ThemeSelector";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -198,15 +195,16 @@ export default function Backtesting() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="min-h-screen">
-        <Header 
-          title="Backtesting" 
-          subtitle="Test strategies on historical data"
-        />
-        
-        <div className="p-6">
-          <Tabs defaultValue="builder" className="space-y-6">
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Backtesting</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">
+          Test strategies on historical data
+        </p>
+      </div>
+      
+      <div>
+        <Tabs defaultValue="builder" className="space-y-6">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="builder">Strategy Builder</TabsTrigger>
               <TabsTrigger value="results">Results</TabsTrigger>

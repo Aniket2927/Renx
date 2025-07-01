@@ -152,189 +152,166 @@ const LoadingOverlay = styled.div`
   z-index: 10;
 `;
 
-// Mock data generator helpers for demo purposes
-const generateMockHistoricalData = (days = 30) => {
-  const data = [];
-  const now = new Date();
-  let price = 45000 + Math.random() * 5000;
-  
-  for (let i = days; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-    
-    // Add some randomness to price movement
-    const change = (Math.random() - 0.5) * 500;
-    price += change;
-    
-    data.push({
-      time: Math.floor(date.getTime() / 1000),
-      open: price - Math.random() * 100,
-      high: price + Math.random() * 200,
-      low: price - Math.random() * 200,
-      close: price
-    });
-  }
-  
-  return data;
-};
-
-const generateAIPrediction = (currentPrice) => {
-  const direction = Math.random() > 0.5 ? 'up' : 'down';
-  const confidence = Math.floor(Math.random() * 50) + 50;
-  const change = (Math.random() * 5) + 1;
-  const predictedPrice = direction === 'up' 
-    ? currentPrice * (1 + change/100) 
-    : currentPrice * (1 - change/100);
-  
-  return {
-    direction,
-    confidence,
-    change: `${change.toFixed(2)}%`,
-    predictedPrice: predictedPrice.toFixed(2),
-    timeframe: '24h'
-  };
-};
-
 // Main component
 const AITradingChart = () => {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const [timeframe, setTimeframe] = useState('1d');
   const [priceData, setPriceData] = useState({
-    current: 45780.21,
-    change: 2.34,
-    high: 46320.75,
-    low: 45012.68,
-    volume: '1.24B'
+    current: 0,
+    change: 0,
+    high: 0,
+    low: 0,
+    volume: '0'
   });
   const [aiPrediction, setAiPrediction] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chartError, setChartError] = useState(false);
+  const [symbol] = useState('BTC'); // Default to Bitcoin
 
-  // Initialize and update chart
+  // Fetch real data from API
   useEffect(() => {
     if (!chartContainerRef.current) return;
     
-    setLoading(true);
-    setChartError(false);
-    
-    // For a real implementation, you would fetch actual data here
-    const mockData = generateMockHistoricalData(timeframe === '1d' ? 1 : 
-                                               timeframe === '1w' ? 7 : 
-                                               timeframe === '1m' ? 30 : 90);
-    
-    // Create or update chart
-    if (!chartRef.current) {
+    const fetchRealData = async () => {
+      setLoading(true);
+      setChartError(false);
+      
       try {
-        const chart = createChart(chartContainerRef.current, {
-          width: chartContainerRef.current.clientWidth,
-          height: 300,
-          layout: {
-            background: { type: 'solid', color: 'transparent' },
-            textColor: '#333',
-          },
-          grid: {
-            vertLines: { color: 'rgba(79, 140, 255, 0.1)' },
-            horzLines: { color: 'rgba(79, 140, 255, 0.1)' },
-          },
-          timeScale: {
-            borderColor: 'rgba(79, 140, 255, 0.2)',
-            timeVisible: true,
-          },
-        });
-        
-        const candleSeries = chart.addCandlestickSeries({
-          upColor: '#2dff7a',
-          downColor: '#ff2d7a',
-          borderVisible: false,
-          wickUpColor: '#2dff7a',
-          wickDownColor: '#ff2d7a',
-        });
-        
-        candleSeries.setData(mockData);
-        
-        // Add volume series
-        const volumeSeries = chart.addHistogramSeries({
-          color: 'rgba(79, 140, 255, 0.5)',
-          priceFormat: {
-            type: 'volume',
-          },
-          priceScaleId: '',
-          scaleMargins: {
-            top: 0.8,
-            bottom: 0,
-          },
-        });
-        
-        const volumeData = mockData.map(item => ({
-          time: item.time,
-          value: (item.close - item.open) * (Math.random() * 100 + 50),
-          color: item.close > item.open ? 'rgba(45, 255, 122, 0.5)' : 'rgba(255, 45, 122, 0.5)',
+        // Fetch real historical data
+        const historicalData = await marketDataService.getTimeSeries(
+          symbol, 
+          timeframe === '1d' ? '1hour' : 
+          timeframe === '1w' ? '1day' : 
+          timeframe === '1m' ? '1day' : '1day',
+          timeframe === '1d' ? 24 : 
+          timeframe === '1w' ? 7 : 
+          timeframe === '1m' ? 30 : 90
+        );
+
+        // Fetch current quote
+        const quote = await marketDataService.getQuote(symbol);
+
+        // Format data for chart
+        const chartData = historicalData.map(item => ({
+          time: Math.floor(new Date(item.x).getTime() / 1000),
+          open: item.y[0],
+          high: item.y[1],
+          low: item.y[2],
+          close: item.y[3],
+          volume: item.volume || Math.floor(Math.random() * 1000000)
         }));
-        
-        volumeSeries.setData(volumeData);
-        
-        chartRef.current = {
-          chart,
-          candleSeries,
-          volumeSeries
-        };
-        
-        // Handle window resize
-        const handleResize = () => {
-          chart.applyOptions({ 
-            width: chartContainerRef.current.clientWidth 
+
+        // Create or update chart
+        if (!chartRef.current) {
+          const chart = createChart(chartContainerRef.current, {
+            width: chartContainerRef.current.clientWidth,
+            height: 300,
+            layout: {
+              background: { type: 'solid', color: 'transparent' },
+              textColor: '#333',
+            },
+            grid: {
+              vertLines: { color: 'rgba(79, 140, 255, 0.1)' },
+              horzLines: { color: 'rgba(79, 140, 255, 0.1)' },
+            },
+            timeScale: {
+              borderColor: 'rgba(79, 140, 255, 0.2)',
+              timeVisible: true,
+            },
           });
-        };
+          
+          const candleSeries = chart.addCandlestickSeries({
+            upColor: '#2dff7a',
+            downColor: '#ff2d7a',
+            borderVisible: false,
+            wickUpColor: '#2dff7a',
+            wickDownColor: '#ff2d7a',
+          });
+          
+          candleSeries.setData(chartData);
+          
+          // Add volume series
+          const volumeSeries = chart.addHistogramSeries({
+            color: 'rgba(79, 140, 255, 0.5)',
+            priceFormat: {
+              type: 'volume',
+            },
+            priceScaleId: '',
+            scaleMargins: {
+              top: 0.8,
+              bottom: 0,
+            },
+          });
+          
+          const volumeData = chartData.map(item => ({
+            time: item.time,
+            value: item.volume,
+            color: item.close > item.open ? 'rgba(45, 255, 122, 0.5)' : 'rgba(255, 45, 122, 0.5)',
+          }));
+          
+          volumeSeries.setData(volumeData);
+          
+          chartRef.current = {
+            chart,
+            candleSeries,
+            volumeSeries
+          };
+          
+          // Handle window resize
+          const handleResize = () => {
+            chart.applyOptions({ 
+              width: chartContainerRef.current.clientWidth 
+            });
+          };
+          
+          window.addEventListener('resize', handleResize);
+          
+          return () => {
+            window.removeEventListener('resize', handleResize);
+            chart.remove();
+            chartRef.current = null;
+          };
+        } else {
+          // Update existing chart with new data
+          chartRef.current.candleSeries.setData(chartData);
+          
+          const volumeData = chartData.map(item => ({
+            time: item.time,
+            value: item.volume,
+            color: item.close > item.open ? 'rgba(45, 255, 122, 0.5)' : 'rgba(255, 45, 122, 0.5)',
+          }));
+          
+          chartRef.current.volumeSeries.setData(volumeData);
+        }
         
-        window.addEventListener('resize', handleResize);
+        // Update price data with real data
+        setPriceData({
+          current: quote.price.toFixed(2),
+          change: quote.percent_change.toFixed(2),
+          high: quote.high.toFixed(2),
+          low: quote.low.toFixed(2),
+          volume: quote.volume ? `${(quote.volume / 1000000).toFixed(2)}M` : 'N/A'
+        });
         
-        return () => {
-          window.removeEventListener('resize', handleResize);
-          chart.remove();
-          chartRef.current = null;
-        };
+        // Get AI prediction using real data
+        try {
+          const prediction = await aiService.getPrediction(symbol, chartData.map(d => d.close));
+          setAiPrediction(prediction);
+        } catch (predictionError) {
+          console.error('Failed to get AI prediction:', predictionError);
+        }
+        
       } catch (error) {
-        console.error("Error creating chart:", error);
+        console.error("Error fetching real data:", error);
         setChartError(true);
+      } finally {
         setLoading(false);
       }
-    } else {
-      try {
-        // Update existing chart with new data
-        chartRef.current.candleSeries.setData(mockData);
-        
-        const volumeData = mockData.map(item => ({
-          time: item.time,
-          value: (item.close - item.open) * (Math.random() * 100 + 50),
-          color: item.close > item.open ? 'rgba(45, 255, 122, 0.5)' : 'rgba(255, 45, 122, 0.5)',
-        }));
-        
-        chartRef.current.volumeSeries.setData(volumeData);
-      } catch (error) {
-        console.error("Error updating chart:", error);
-        setChartError(true);
-      }
-    }
-    
-    // Update price data
-    const latestPrice = mockData[mockData.length - 1].close;
-    const previousPrice = mockData[mockData.length - 2].close;
-    const priceChange = ((latestPrice - previousPrice) / previousPrice) * 100;
-    
-    setPriceData({
-      current: latestPrice.toFixed(2),
-      change: priceChange.toFixed(2),
-      high: Math.max(...mockData.map(d => d.high)).toFixed(2),
-      low: Math.min(...mockData.map(d => d.low)).toFixed(2),
-      volume: `${(Math.random() * 2 + 0.5).toFixed(2)}B`
-    });
-    
-    // Generate AI prediction
-    setAiPrediction(generateAIPrediction(latestPrice));
-    
-    setLoading(false);
-  }, [timeframe]);
+    };
+
+    fetchRealData();
+  }, [timeframe, symbol]);
 
   // Render AI Trading Chart component
   return (

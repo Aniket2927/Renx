@@ -1,7 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { Sidebar } from "@/components/Layout/Sidebar";
-import { Header } from "@/components/Layout/Header";
-import ThemeSelector from "@/components/Layout/ThemeSelector";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
@@ -165,14 +162,15 @@ export default function RiskManagement() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="min-h-screen">
-        <Header 
-          title="Risk Management" 
-          subtitle="Monitor and control your trading risks"
-        />
-        
-        <div className="p-6">
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Risk Management</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">
+          Monitor and control your trading risks
+        </p>
+      </div>
+      
+      <div>
           {/* Risk Overview */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
             <Card className="stat-card">

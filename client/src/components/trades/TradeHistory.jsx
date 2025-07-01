@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from "@tanstack/react-query";
 import styled from 'styled-components';
-import { tradesAPI } from '../../services/apiConfig';
+import { tradesAPI } from '../../services/api';
 
 const HistoryContainer = styled.div`
   display: flex;

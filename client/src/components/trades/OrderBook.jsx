@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { useQuery } from '@tanstack/react-query';
+import { orderbookAPI } from '../../services/api';
 
 const OrderBookContainer = styled.div`
   display: flex;
@@ -107,8 +109,8 @@ const PriceInfo = styled.div`
   color: ${props => props.change >= 0 ? '#2dff7a' : '#ff2d7a'};
 `;
 
-// Generate mock order book data
-const generateMockOrders = (basePrice, count = 10) => {
+// Fallback order book data for when API fails
+const getFallbackOrderBook = (basePrice, count = 10) => {
   const buyOrders = [];
   const sellOrders = [];
   
@@ -149,26 +151,76 @@ const generateMockOrders = (basePrice, count = 10) => {
 
 const OrderBook = ({ market }) => {
   const [activeTab, setActiveTab] = useState('both');
-  const [orderBook, setOrderBook] = useState({ buyOrders: [], sellOrders: [] });
   
-  useEffect(() => {
-    // Generate mock order book data based on market price
-    setOrderBook(generateMockOrders(market.price, 12));
-    
-    // In a real app, you would fetch order book data from an API
-    // and potentially set up a websocket for live updates
-    const interval = setInterval(() => {
-      setOrderBook(generateMockOrders(market.price, 12));
-    }, 5000);
-    
-    return () => clearInterval(interval);
-  }, [market]);
+  // Real API integration for order book data
+  const { data: orderBookData, isLoading, error } = useQuery({
+    queryKey: ['/api/orderbook', market?.symbol],
+    queryFn: async () => {
+      if (!market?.symbol) return null;
+      
+      try {
+        const response = await orderbookAPI.get(market.symbol);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching order book:', error);
+        // Fallback to generated data if API fails
+        return getFallbackOrderBook(market.price, 12);
+      }
+    },
+    enabled: !!market?.symbol,
+    refetchInterval: 2000, // Refresh every 2 seconds for real-time updates
+    staleTime: 1000, // Consider data stale after 1 second
+  });
+  
+  // Transform API data to expected format
+  const orderBook = orderBookData ? {
+    buyOrders: orderBookData.bids?.map(bid => ({
+      id: `buy-${bid.price}`,
+      price: bid.price,
+      quantity: bid.quantity,
+      total: bid.price * bid.quantity
+    })) || [],
+    sellOrders: orderBookData.asks?.map(ask => ({
+      id: `sell-${ask.price}`,
+      price: ask.price,
+      quantity: ask.quantity,
+      total: ask.price * ask.quantity
+    })) || []
+  } : { buyOrders: [], sellOrders: [] };
   
   // Calculate the spread between highest buy and lowest sell
   const highestBuy = orderBook.buyOrders[0]?.price || 0;
   const lowestSell = orderBook.sellOrders[0]?.price || 0;
   const spread = lowestSell - highestBuy;
-  const spreadPercentage = (spread / market.price) * 100;
+  const spreadPercentage = market?.price ? (spread / market.price) * 100 : 0;
+  
+  // Loading state
+  if (isLoading) {
+    return (
+      <OrderBookContainer>
+        <OrderBookTabs>
+          <OrderBookTab active={true}>Order Book</OrderBookTab>
+        </OrderBookTabs>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', color: '#4f8cff' }}>
+          Loading order book...
+        </div>
+      </OrderBookContainer>
+    );
+  }
+  
+  // Error state
+  if (error && orderBook.buyOrders.length === 0 && orderBook.sellOrders.length === 0) {
+    return (
+      <OrderBookContainer>
+        <OrderBookTabs>
+          <OrderBookTab active={true}>Order Book</OrderBookTab>
+        </OrderBookTabs>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', color: '#ff2d7a' }}>
+          Error loading order book
+        </div>
+      </OrderBookContainer>
+    );
+  }
   
   return (
     <OrderBookContainer>

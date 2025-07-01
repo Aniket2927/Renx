@@ -136,7 +136,7 @@ class EnhancedTradingService {
       this.subscribers.get(event).forEach(callback => {
         try {
           callback(data);
-    } catch (error) {
+        } catch (error) {
           console.error(`Error in subscriber callback for ${event}:`, error);
         }
       });

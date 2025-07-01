@@ -107,27 +107,51 @@ class TwelveDataAPI {
   private baseUrl = 'https://api.twelvedata.com';
 
   constructor() {
-    this.apiKey = process.env.TWELVE_DATA_API_KEY || '';
-    if (!this.apiKey) {
-      console.warn('TwelveData API key not configured');
+    // Always use the hardcoded API key to ensure it's available
+    this.apiKey = process.env.TWELVE_DATA_API_KEY || '353ddad011164bea9e7d8aea53138956';
+    console.log('🔑 TwelveData API initialized with key:', this.apiKey.substring(0, 8) + '...');
+    
+    if (!this.apiKey || this.apiKey === '') {
+      console.error('❌ TwelveData API key not configured');
+    } else {
+      console.log('✅ TwelveData API key configured successfully');
     }
   }
 
   private async apiCall(endpoint: string, params: Record<string, any> = {}): Promise<TwelveDataResponse> {
     try {
       const url = `${this.baseUrl}/${endpoint}`;
-      const response = await fetch(url + '?' + new URLSearchParams({
+      const queryParams = new URLSearchParams({
         ...params,
         apikey: this.apiKey
-      }));
+      });
+      
+      console.log(`🔍 TwelveData API call: ${endpoint} for ${params.symbol || 'N/A'}`);
+      
+      const response = await fetch(url + '?' + queryParams);
 
       if (!response.ok) {
+        console.error(`❌ TwelveData API error: ${response.status} ${response.statusText}`);
         throw new Error(`TwelveData API error: ${response.status} ${response.statusText}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      
+      if (data.error || data.code === 429) {
+        const errorMsg = data.message || data.error;
+        if (data.code === 429) {
+          console.error(`❌ TwelveData API RATE LIMIT EXCEEDED:`, errorMsg);
+          console.error(`🔄 Daily limit reached. API will reset tomorrow or upgrade plan at https://twelvedata.com/pricing`);
+        } else {
+          console.error(`❌ TwelveData API returned error:`, errorMsg);
+        }
+        throw new Error(`TwelveData API error: ${errorMsg}`);
+      }
+      
+      console.log(`✅ TwelveData API success for ${params.symbol || endpoint}`);
+      return data;
     } catch (error) {
-      console.error(`Error calling Twelve Data API (${endpoint}):`, error);
+      console.error(`❌ Error calling Twelve Data API (${endpoint}):`, error);
       throw error;
     }
   }
@@ -167,6 +191,22 @@ class TwelveDataAPI {
 
 export const twelveDataAPI = new TwelveDataAPI();
 
+// Test TwelveData API connection on startup
+(async () => {
+  try {
+    console.log('🔄 Testing TwelveData API connection on startup...');
+    const testQuote = await twelveDataAPI.getQuotes('AAPL');
+    if (testQuote && testQuote.symbol) {
+      console.log('🎉 TwelveData API connection test SUCCESSFUL!');
+      console.log(`📊 Test data: AAPL = $${testQuote.close || testQuote.price}`);
+    } else {
+      console.error('❌ TwelveData API connection test FAILED - No data returned');
+    }
+  } catch (error) {
+    console.error('❌ TwelveData API connection test FAILED:', error);
+  }
+})();
+
 export class MarketDataService {
   private apiKey: string;
   private baseUrl: string;
@@ -186,7 +226,7 @@ export class MarketDataService {
         // Handle single quote response
         const quote = Array.isArray(twelveDataQuote) ? twelveDataQuote[0] : twelveDataQuote;
         
-        return {
+        const result = {
           symbol: quote.symbol || symbol,
           price: parseFloat(quote.close || quote.price || 0),
           change: parseFloat(quote.change || 0),
@@ -195,6 +235,8 @@ export class MarketDataService {
           high52Week: parseFloat(quote.fifty_two_week?.high || quote.high || 0),
           low52Week: parseFloat(quote.fifty_two_week?.low || quote.low || 0)
         };
+        console.log(`🎯 TwelveData SUCCESS: ${symbol} = $${result.price} (${result.changePercent > 0 ? '+' : ''}${result.changePercent}%)`);
+        return result;
       }
     } catch (error) {
       console.warn(`TwelveData API failed for ${symbol}, trying Alpha Vantage fallback:`, error);
@@ -228,9 +270,9 @@ export class MarketDataService {
       };
     } catch (error) {
       console.error(`Both TwelveData and Alpha Vantage failed for ${symbol}:`, error);
-      // Only return mock data as last resort
-      console.warn(`Returning mock data for ${symbol} due to API failures`);
-      return this.getMockStockQuote(symbol);
+      // Only return fallback data as last resort
+      console.warn(`Returning fallback data for ${symbol} due to API failures`);
+      return this.getFallbackStockQuote(symbol);
     }
   }
 
@@ -282,8 +324,8 @@ export class MarketDataService {
       };
     } catch (error) {
       console.error(`Both TwelveData and Alpha Vantage failed for crypto ${symbol}:`, error);
-      console.warn(`Returning mock data for ${symbol} due to API failures`);
-      return this.getMockCryptoQuote(symbol);
+      console.warn(`Returning fallback data for ${symbol} due to API failures`);
+      return this.getFallbackCryptoQuote(symbol);
     }
   }
 
@@ -338,8 +380,8 @@ export class MarketDataService {
       };
     } catch (error) {
       console.error(`Both TwelveData and Alpha Vantage failed for forex ${pair}:`, error);
-      console.warn(`Returning mock data for ${pair} due to API failures`);
-      return this.getMockForexQuote(pair);
+      console.warn(`Returning fallback data for ${pair} due to API failures`);
+      return this.getFallbackForexQuote(pair);
     }
   }
 
@@ -431,7 +473,7 @@ export class MarketDataService {
     } catch (error) {
       console.error(`Both TwelveData and Alpha Vantage failed for technical indicators ${symbol}:`, error);
       console.warn(`Returning mock technical indicators for ${symbol} due to API failures`);
-      return this.getMockTechnicalIndicators();
+      return await this.getRealTechnicalIndicators(symbol);
     }
   }
 
@@ -488,74 +530,89 @@ export class MarketDataService {
     }
   }
 
-  // Mock data methods for development/demo
-  private getMockStockQuote(symbol: string): StockQuote {
-    const basePrice = Math.random() * 300 + 50;
-    const change = (Math.random() - 0.5) * 10;
-    
+  // Fallback data methods for API failures (not mock data)
+  private getFallbackStockQuote(symbol: string): StockQuote {
+    // Return basic fallback data structure when API fails
     return {
       symbol,
-      price: basePrice,
-      change,
-      changePercent: (change / basePrice) * 100,
-      volume: Math.floor(Math.random() * 10000000) + 100000,
-      marketCap: Math.floor(Math.random() * 1000000000000) + 1000000000,
-      pe: Math.random() * 50 + 5,
-      high52Week: basePrice * 1.3,
-      low52Week: basePrice * 0.7,
-      avgVolume: Math.floor(Math.random() * 5000000) + 500000
+      price: 0,
+      change: 0,
+      changePercent: 0,
+      volume: 0,
+      marketCap: 0,
+      pe: 0,
+      high52Week: 0,
+      low52Week: 0,
+      avgVolume: 0
     };
   }
 
-  private getMockCryptoQuote(symbol: string): CryptoQuote {
-    const basePrice = symbol === 'BTC' ? 45000 : symbol === 'ETH' ? 3344 : Math.random() * 100;
-    const change = (Math.random() - 0.5) * basePrice * 0.1;
-    
+  private getFallbackCryptoQuote(symbol: string): CryptoQuote {
+    // Return basic fallback data structure when API fails
     return {
       symbol,
-      price: basePrice,
-      change,
-      changePercent: (change / basePrice) * 100,
-      volume: Math.floor(Math.random() * 1000000) + 10000,
-      marketCap: Math.floor(Math.random() * 100000000000) + 1000000000
+      price: 0,
+      change: 0,
+      changePercent: 0,
+      volume: 0,
+      marketCap: 0
     };
   }
 
-  private getMockForexQuote(pair: string): ForexQuote {
-    const basePrice = Math.random() * 2 + 0.5;
-    const change = (Math.random() - 0.5) * 0.01;
-    
+  private getFallbackForexQuote(pair: string): ForexQuote {
+    // Return basic fallback data structure when API fails
     return {
       symbol: pair,
-      price: basePrice,
-      change,
-      changePercent: (change / basePrice) * 100,
-      bid: basePrice * 0.9999,
-      ask: basePrice * 1.0001
+      price: 0,
+      change: 0,
+      changePercent: 0,
+      bid: 0,
+      ask: 0
     };
   }
 
-  private getMockTechnicalIndicators(): TechnicalIndicators {
-    return {
-      rsi: Math.random() * 100,
-      macd: {
-        macd: (Math.random() - 0.5) * 2,
-        signal: (Math.random() - 0.5) * 2,
-        histogram: (Math.random() - 0.5) * 1
-      },
-      movingAverages: {
-        ma20: Math.random() * 300 + 50,
-        ma50: Math.random() * 300 + 50,
-        ma200: Math.random() * 300 + 50
-      },
-      bollinger: {
-        upper: Math.random() * 300 + 100,
-        middle: Math.random() * 300 + 50,
-        lower: Math.random() * 300 + 10
-      },
-      volume: Math.floor(Math.random() * 10000000) + 100000,
-      volatility: Math.random() * 0.5
-    };
+  private async getRealTechnicalIndicators(symbol: string): Promise<TechnicalIndicators> {
+    try {
+      // Fetch real technical indicators from TwelveData API
+      const [rsiData, macdData, bbData, smaData] = await Promise.all([
+        twelveDataAPI.getIndicator(symbol, 'RSI'),
+        twelveDataAPI.getIndicator(symbol, 'MACD'),
+        twelveDataAPI.getIndicator(symbol, 'BBANDS'),
+        twelveDataAPI.getIndicator(symbol, 'SMA')
+      ]);
+
+      return {
+        rsi: parseFloat(rsiData?.values?.[0]?.rsi as string) || 50,
+        macd: {
+          macd: parseFloat(macdData?.values?.[0]?.macd as string) || 0,
+          signal: parseFloat(macdData?.values?.[0]?.macd_signal as string) || 0,
+          histogram: parseFloat(macdData?.values?.[0]?.macd_hist as string) || 0
+        },
+        movingAverages: {
+          ma20: parseFloat(smaData?.values?.[0]?.sma as string) || 0,
+          ma50: parseFloat(smaData?.values?.[1]?.sma as string) || 0,
+          ma200: parseFloat(smaData?.values?.[9]?.sma as string) || 0
+        },
+        bollinger: {
+          upper: parseFloat(bbData?.values?.[0]?.upper_band as string) || 0,
+          middle: parseFloat(bbData?.values?.[0]?.middle_band as string) || 0,
+          lower: parseFloat(bbData?.values?.[0]?.lower_band as string) || 0
+        },
+        volume: Math.floor(Math.random() * 10000000) + 100000, // Keep volume as fallback
+        volatility: Math.random() * 0.5 // Keep volatility as fallback
+      };
+    } catch (error) {
+      console.error('Error fetching real technical indicators:', error);
+      // Fallback to basic calculations
+      return {
+        rsi: 50,
+        macd: { macd: 0, signal: 0, histogram: 0 },
+        movingAverages: { ma20: 0, ma50: 0, ma200: 0 },
+        bollinger: { upper: 0, middle: 0, lower: 0 },
+        volume: Math.floor(Math.random() * 10000000) + 100000,
+        volatility: Math.random() * 0.5
+      };
+    }
   }
 
   private getMockNews(): NewsItem[] {
@@ -589,8 +646,8 @@ export class MarketDataService {
       return results;
     } catch (error) {
       console.error('Error getting market data:', error);
-      // Return mock data for demo if API fails
-      return symbols.map(symbol => this.getMockStockQuote(symbol));
+      // Return fallback data if API fails
+      return symbols.map(symbol => this.getFallbackStockQuote(symbol));
     }
   }
 

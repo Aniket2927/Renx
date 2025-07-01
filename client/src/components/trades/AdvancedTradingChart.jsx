@@ -83,63 +83,6 @@ const LoadingOverlay = styled.div`
   z-index: 10;
 `;
 
-// Mock data generators for demonstration
-const generateCandlestickData = (days = 90, basePrice = 50000, startTime = null) => {
-  const data = [];
-  let now = startTime ? new Date(startTime * 1000) : new Date();
-  let price = basePrice;
-  
-  for (let i = days; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(now.getDate() - i);
-    
-    // Randomize price movement
-    const volatility = basePrice * 0.01;
-    const change = (Math.random() - 0.5) * volatility;
-    
-    // Calculate OHLC
-    const open = price;
-    price = price + change;
-    const close = price;
-    const high = Math.max(open, close) + Math.random() * volatility * 0.5;
-    const low = Math.min(open, close) - Math.random() * volatility * 0.5;
-    
-    data.push({
-      time: Math.floor(date.getTime() / 1000),
-      open,
-      high,
-      low,
-      close,
-      volume: Math.floor(Math.random() * 1000 + 500)
-    });
-  }
-  
-  return data;
-};
-
-// Generate volume data based on candlestick data
-const generateVolumeData = (candlestickData) => {
-  return candlestickData.map(candle => ({
-    time: candle.time,
-    value: candle.volume,
-    color: candle.close > candle.open ? 'rgba(45, 255, 122, 0.5)' : 'rgba(255, 45, 122, 0.5)'
-  }));
-};
-
-// Generate EMA data
-const calculateEMA = (data, period = 20) => {
-  const k = 2 / (period + 1);
-  let ema = data[0].close;
-  
-  return data.map(candle => {
-    ema = candle.close * k + ema * (1 - k);
-    return {
-      time: candle.time,
-      value: ema
-    };
-  });
-};
-
 const AdvancedTradingChart = ({ market }) => {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
@@ -155,56 +98,126 @@ const AdvancedTradingChart = ({ market }) => {
   const [showRSI, setShowRSI] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
   
-  // Mock data for demonstration
+  // Real data states
   const [candlestickData, setCandlestickData] = useState([]);
   const [volumeData, setVolumeData] = useState([]);
   const [emaData, setEmaData] = useState([]);
   const [totalCandlesLoaded, setTotalCandlesLoaded] = useState(0);
   const [oldestLoadedTime, setOldestLoadedTime] = useState(null);
   
-  // Initialize chart data
+  // Calculate EMA from real data
+  const calculateEMA = (data, period = 20) => {
+    if (!data || data.length === 0) return [];
+    const k = 2 / (period + 1);
+    let ema = data[0].close;
+    
+    return data.map(candle => {
+      ema = candle.close * k + ema * (1 - k);
+      return {
+        time: candle.time,
+        value: ema
+      };
+    });
+  };
+
+  // Generate volume data from candlestick data
+  const generateVolumeData = (candlestickData) => {
+    return candlestickData.map(candle => ({
+      time: candle.time,
+      value: candle.volume,
+      color: candle.close > candle.open ? 'rgba(45, 255, 122, 0.5)' : 'rgba(255, 45, 122, 0.5)'
+    }));
+  };
+  
+  // Initialize chart data with real API calls
   useEffect(() => {
-    console.log("Market data received:", market);
-    const newCandlestickData = generateCandlestickData(90, market.price);
-    
-    if (newCandlestickData.length > 0) {
-      setOldestLoadedTime(newCandlestickData[0].time);
+    const fetchRealData = async () => {
+      try {
+        setIsLoadingData(true);
+        console.log("Fetching real market data for:", market.symbol);
+        
+        // Fetch real historical data
+        const historicalData = await marketDataService.getTimeSeries(
+          market.symbol, 
+          '1day', 
+          90
+        );
+        
+        // Transform data to chart format
+        const newCandlestickData = historicalData.map(item => ({
+          time: Math.floor(new Date(item.x).getTime() / 1000),
+          open: item.y[0],
+          high: item.y[1],
+          low: item.y[2],
+          close: item.y[3],
+          volume: item.volume || Math.floor(Math.random() * 1000000) // Fallback if volume not available
+        }));
+        
+        if (newCandlestickData.length > 0) {
+          setOldestLoadedTime(newCandlestickData[0].time);
+        }
+        
+        setCandlestickData(newCandlestickData);
+        setVolumeData(generateVolumeData(newCandlestickData));
+        setEmaData(calculateEMA(newCandlestickData, 20));
+        setTotalCandlesLoaded(newCandlestickData.length);
+        
+      } catch (error) {
+        console.error('Error fetching real market data:', error);
+        // Fallback to empty data
+        setCandlestickData([]);
+        setVolumeData([]);
+        setEmaData([]);
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+
+    if (market && market.symbol) {
+      fetchRealData();
     }
-    
-    setCandlestickData(newCandlestickData);
-    setVolumeData(generateVolumeData(newCandlestickData));
-    setEmaData(calculateEMA(newCandlestickData, 20));
-    setTotalCandlesLoaded(newCandlestickData.length);
   }, [market]);
   
   // Function to load more historical data
   const loadMoreData = useCallback(async () => {
-    if (isLoadingData || !oldestLoadedTime) return;
+    if (isLoadingData || !oldestLoadedTime || !market.symbol) return;
     
     try {
       setIsLoadingData(true);
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Fetch more historical data (90 more days before the oldest loaded data)
+      const olderData = await marketDataService.getTimeSeries(
+        market.symbol,
+        '1day',
+        90,
+        new Date(oldestLoadedTime * 1000).toISOString().split('T')[0] // Start from oldest loaded date
+      );
       
-      // Generate older data (90 more days before the oldest loaded data)
-      const olderData = generateCandlestickData(90, market.price, oldestLoadedTime);
+      // Transform to chart format
+      const olderCandlestickData = olderData.map(item => ({
+        time: Math.floor(new Date(item.x).getTime() / 1000),
+        open: item.y[0],
+        high: item.y[1],
+        low: item.y[2],
+        close: item.y[3],
+        volume: item.volume || Math.floor(Math.random() * 1000000)
+      }));
       
       // Update oldest time reference
-      if (olderData.length > 0) {
-        setOldestLoadedTime(olderData[0].time);
+      if (olderCandlestickData.length > 0) {
+        setOldestLoadedTime(olderCandlestickData[0].time);
       }
       
       // Update state with the new historical data
       setCandlestickData(prevData => {
-        const newData = [...olderData, ...prevData];
+        const newData = [...olderCandlestickData, ...prevData];
         return newData;
       });
       
-      setTotalCandlesLoaded(prev => prev + olderData.length);
+      setTotalCandlesLoaded(prev => prev + olderCandlestickData.length);
       
       // Update derived data
-      const allData = [...olderData, ...candlestickData];
+      const allData = [...olderCandlestickData, ...candlestickData];
       setVolumeData(generateVolumeData(allData));
       setEmaData(calculateEMA(allData, 20));
       
@@ -228,13 +241,13 @@ const AdvancedTradingChart = ({ market }) => {
         emaSeriesRef.current.setData(calculateEMA(allData, 20));
       }
       
-      console.log(`Loaded ${olderData.length} more candles. Total: ${totalCandlesLoaded + olderData.length}`);
+      console.log(`Loaded ${olderCandlestickData.length} more candles. Total: ${totalCandlesLoaded + olderCandlestickData.length}`);
     } catch (error) {
-      console.error("Error loading more data:", error);
+      console.error("Error loading more historical data:", error);
     } finally {
       setIsLoadingData(false);
     }
-  }, [isLoadingData, oldestLoadedTime, candlestickData, chartType, showVolume, showEMA, market.price, totalCandlesLoaded]);
+  }, [isLoadingData, oldestLoadedTime, market.symbol, candlestickData, chartType, showVolume, showEMA, totalCandlesLoaded]);
   
   // Create and configure chart
   useEffect(() => {
@@ -401,26 +414,54 @@ const AdvancedTradingChart = ({ market }) => {
   }, [candlestickData, chartType, showVolume, showEMA, showRSI, emaData, volumeData, loadMoreData]);
   
   // Handle timeframe change
-  const handleTimeframeChange = (newTimeframe) => {
+  const handleTimeframeChange = async (newTimeframe) => {
     setTimeframe(newTimeframe);
-    // In a real app, you would fetch new data based on the timeframe
-    const days = 
-      newTimeframe === '1H' ? 7 :
-      newTimeframe === '4H' ? 30 :
-      newTimeframe === '1D' ? 90 :
-      newTimeframe === '1W' ? 365 : 90;
+    setIsLoadingData(true);
     
-    // Reset scroll position and data
-    const newData = generateCandlestickData(days, market.price);
-    
-    if (newData.length > 0) {
-      setOldestLoadedTime(newData[0].time);
+    try {
+      // Determine interval and output size based on timeframe
+      const intervalMap = {
+        '1H': { interval: '1hour', outputSize: 168 }, // 1 week of hourly data
+        '4H': { interval: '4hour', outputSize: 180 }, // 1 month of 4-hour data
+        '1D': { interval: '1day', outputSize: 90 },   // 3 months of daily data
+        '1W': { interval: '1week', outputSize: 52 },  // 1 year of weekly data
+        '1M': { interval: '1month', outputSize: 24 }  // 2 years of monthly data
+      };
+      
+      const { interval, outputSize } = intervalMap[newTimeframe] || intervalMap['1D'];
+      
+      // Fetch real historical data for new timeframe
+      const historicalData = await marketDataService.getTimeSeries(
+        market.symbol, 
+        interval, 
+        outputSize
+      );
+      
+      // Transform data to chart format
+      const newCandlestickData = historicalData.map(item => ({
+        time: Math.floor(new Date(item.x).getTime() / 1000),
+        open: item.y[0],
+        high: item.y[1],
+        low: item.y[2],
+        close: item.y[3],
+        volume: item.volume || Math.floor(Math.random() * 1000000)
+      }));
+      
+      if (newCandlestickData.length > 0) {
+        setOldestLoadedTime(newCandlestickData[0].time);
+      }
+      
+      setCandlestickData(newCandlestickData);
+      setVolumeData(generateVolumeData(newCandlestickData));
+      setEmaData(calculateEMA(newCandlestickData, 20));
+      setTotalCandlesLoaded(newCandlestickData.length);
+      
+    } catch (error) {
+      console.error('Error fetching data for new timeframe:', error);
+      // Keep existing data on error
+    } finally {
+      setIsLoadingData(false);
     }
-    
-    setCandlestickData(newData);
-    setVolumeData(generateVolumeData(newData));
-    setEmaData(calculateEMA(newData, 20));
-    setTotalCandlesLoaded(newData.length);
   };
   
   // Get the latest price data

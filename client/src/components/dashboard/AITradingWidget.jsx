@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { 
   FaRobot, 
   FaChartLine, 
@@ -20,112 +21,36 @@ import ReactApexChart from 'react-apexcharts';
 
 const AITradingWidget = () => {
   const [activeTab, setActiveTab] = useState('signals');
-  const [loading, setLoading] = useState(true);
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
   const [selectedSignal, setSelectedSignal] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshedItems, setRefreshedItems] = useState([]);
   
-  // Mock data for AI signals
-  const initialTradingSignals = [
-    { 
-      id: 1, 
-      asset: 'BTC/USD', 
-      signal: 'buy', 
-      confidence: 87, 
-      prediction: '+5.3%', 
-      timestamp: '10 min ago',
-      price: '46,892.32'
-    },
-    { 
-      id: 2, 
-      asset: 'ETH/USD', 
-      signal: 'sell', 
-      confidence: 76, 
-      prediction: '-2.1%', 
-      timestamp: '25 min ago',
-      price: '3,341.56'
-    },
-    { 
-      id: 3, 
-      asset: 'XRP/USD', 
-      signal: 'neutral', 
-      confidence: 52, 
-      prediction: '+0.3%', 
-      timestamp: '42 min ago',
-      price: '0.5487'
-    },
-    { 
-      id: 4, 
-      asset: 'SOL/USD', 
-      signal: 'buy', 
-      confidence: 91, 
-      prediction: '+7.8%', 
-      timestamp: '15 min ago',
-      price: '103.45'
-    }
-  ];
-  
-  const [tradingSignals, setTradingSignals] = useState(initialTradingSignals);
-  
-  // Mock data for market sentiment
-  const sentimentData = [
-    { asset: 'Bitcoin', positive: 67, negative: 23, neutral: 10 },
-    { asset: 'Ethereum', positive: 58, negative: 31, neutral: 11 },
-    { asset: 'DeFi Sector', positive: 62, negative: 28, neutral: 10 },
-    { asset: 'NFT Market', positive: 48, negative: 42, neutral: 10 }
-  ];
-  
-  // Mock news data
-  const newsData = [
-    { 
-      id: 1, 
-      title: 'Federal Reserve signals potential interest rate cut', 
-      source: 'Financial Times', 
-      impact: 'bullish', 
-      time: '2 hours ago' 
-    },
-    { 
-      id: 2, 
-      title: 'Major tech company announces crypto payment integration', 
-      source: 'TechCrunch', 
-      impact: 'bullish', 
-      time: '5 hours ago' 
-    },
-    { 
-      id: 3, 
-      title: 'Regulatory concerns grow in Asian markets', 
-      source: 'Bloomberg', 
-      impact: 'bearish', 
-      time: '3 hours ago' 
-    }
-  ];
-  
-  // Mock portfolio recommendations
-  const portfolioRecommendations = [
-    { 
-      id: 1, 
-      action: 'Increase allocation', 
-      asset: 'Technology stocks', 
-      reason: 'Strong growth indicators in AI sector',
-      impact: 'high'
-    },
-    { 
-      id: 2, 
-      action: 'Reduce exposure', 
-      asset: 'Small-cap cryptocurrencies', 
-      reason: 'Increasing market volatility',
-      impact: 'medium'
-    },
-    { 
-      id: 3, 
-      action: 'Maintain position', 
-      asset: 'Blue-chip stocks', 
-      reason: 'Stable performance expected',
-      impact: 'low'
-    }
-  ];
-  
+  // Real API calls instead of mock data
+  const { data: tradingSignals, isLoading: signalsLoading, refetch: refetchSignals } = useQuery({
+    queryKey: ['ai-trading-signals'],
+    queryFn: () => aiService.getTradingSignals(),
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  const { data: sentimentData, isLoading: sentimentLoading } = useQuery({
+    queryKey: ['market-sentiment'],
+    queryFn: () => aiService.getMarketSentiment(),
+    refetchInterval: 60000, // Refresh every minute
+  });
+
+  const { data: newsData, isLoading: newsLoading } = useQuery({
+    queryKey: ['ai-news'],
+    queryFn: () => aiService.getAINews(),
+    refetchInterval: 300000, // Refresh every 5 minutes
+  });
+
+  const { data: portfolioRecommendations, isLoading: recommendationsLoading } = useQuery({
+    queryKey: ['portfolio-recommendations'],
+    queryFn: () => aiService.getPortfolioRecommendations(),
+    refetchInterval: 300000, // Refresh every 5 minutes
+  });
+
   // New state for tab and input
   const [tab, setTab] = useState('short-term');
   const [symbol, setSymbol] = useState('');
@@ -137,83 +62,33 @@ const AITradingWidget = () => {
     const saved = localStorage.getItem('predictionHistory');
     return saved ? JSON.parse(saved) : [];
   });
+
+  const loading = signalsLoading || sentimentLoading || newsLoading || recommendationsLoading;
   
-  useEffect(() => {
-    // Simulate loading data
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 1500);
-    
-    return () => clearTimeout(timer);
-  }, []);
-  
-  // Function to generate a random price change percentage between -10% and +10%
-  const generateRandomPriceChange = () => {
-    const change = (Math.random() * 20 - 10).toFixed(1);
-    return change >= 0 ? `+${change}%` : `${change}%`;
-  };
-  
-  // Function to generate a random confidence level between 50 and 95
-  const generateRandomConfidence = () => {
-    return Math.floor(Math.random() * 46) + 50;
-  };
-  
-  // Function to determine a signal type based on price change
-  const determineSignalType = (priceChange) => {
-    const change = parseFloat(priceChange);
-    if (change >= 3) return 'buy';
-    if (change <= -3) return 'sell';
-    return 'neutral';
-  };
-  
-  // Function to update price based on prediction
-  const updatePrice = (currentPrice, prediction) => {
-    const price = parseFloat(currentPrice.replace(/,/g, ''));
-    const change = parseFloat(prediction) / 100;
-    const newPrice = (price * (1 + change)).toFixed(2);
-    
-    // Format with commas for thousands
-    return newPrice.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  };
-  
-  // Function to refresh trading signals
-  const refreshData = () => {
+  // Function to refresh all data
+  const refreshData = async () => {
     setIsRefreshing(true);
     
-    // Simulate API call with a delay
-    setTimeout(() => {
-      const updatedSignals = tradingSignals.map(signal => {
-        // Generate new prediction
-        const newPrediction = generateRandomPriceChange();
-        
-        // Update signal type based on new prediction
-        const newSignalType = determineSignalType(newPrediction);
-        
-        // Update price based on prediction
-        const newPrice = updatePrice(signal.price, newPrediction);
-        
-        return {
-          ...signal,
-          signal: newSignalType,
-          confidence: generateRandomConfidence(),
-          prediction: newPrediction,
-          timestamp: 'just now',
-          price: newPrice
-        };
-      });
-      
-      setTradingSignals(updatedSignals);
+    try {
+      await Promise.all([
+        refetchSignals(),
+        // Add other refetch calls as needed
+      ]);
       
       // Set all items as refreshed
-      setRefreshedItems(updatedSignals.map(signal => signal.id));
-      
-      // After animation completes, remove the updated class
-      setTimeout(() => {
-        setRefreshedItems([]);
-      }, 1500);
-      
+      if (tradingSignals) {
+        setRefreshedItems(tradingSignals.map(signal => signal.id));
+        
+        // After animation completes, remove the updated class
+        setTimeout(() => {
+          setRefreshedItems([]);
+        }, 1500);
+      }
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
       setIsRefreshing(false);
-    }, 1000);
+    }
   };
   
   const getSignalColor = (signal) => {
@@ -257,30 +132,37 @@ const AITradingWidget = () => {
   };
   
   const handlePredict = async () => {
-    setLoading(true);
-    setError(null);
-    setPrediction(null);
+    if (!symbol.trim()) {
+      setError('Please enter a symbol');
+      return;
+    }
+
     try {
-      // Fetch historical data for the symbol
-      const hist = await marketDataService.getTimeSeries(symbol);
-      setHistoricalData(hist);
-      // Get prediction
-      const result = await aiService.getPrediction(symbol, hist.map(d => d.y[3]));
-      setPrediction(result);
+      setError(null);
+      
+      // Get historical data for the symbol
+      const historical = await marketDataService.getTimeSeries(symbol, '1month');
+      setHistoricalData(historical);
+      
+      // Get AI prediction
+      const predictionResult = await aiService.getPrediction(symbol, tab, historical);
+      setPrediction(predictionResult);
+      
       // Save to history
-      const newEntry = {
+      const newHistoryItem = {
         symbol,
-        prediction: result.prediction,
-        confidence: result.confidence,
-        date: new Date().toLocaleString()
+        tab,
+        prediction: predictionResult,
+        timestamp: new Date().toISOString()
       };
-      const newHistory = [newEntry, ...history].slice(0, 10); // Keep last 10
-      setHistory(newHistory);
-      localStorage.setItem('predictionHistory', JSON.stringify(newHistory));
+      
+      const updatedHistory = [newHistoryItem, ...history.slice(0, 9)]; // Keep last 10
+      setHistory(updatedHistory);
+      localStorage.setItem('predictionHistory', JSON.stringify(updatedHistory));
+      
     } catch (err) {
-      setError('Failed to fetch prediction.');
-    } finally {
-      setLoading(false);
+      setError('Failed to get prediction. Please try again.');
+      console.error('Prediction error:', err);
     }
   };
   
@@ -436,7 +318,7 @@ const AITradingWidget = () => {
                     <td className="px-2 py-1">{h.symbol}</td>
                     <td className="px-2 py-1">${h.prediction?.toFixed(2) ?? 'N/A'}</td>
                     <td className="px-2 py-1">{(h.confidence * 100).toFixed(1)}%</td>
-                    <td className="px-2 py-1 whitespace-nowrap">{h.date}</td>
+                    <td className="px-2 py-1 whitespace-nowrap">{h.timestamp}</td>
                   </tr>
                 ))}
               </tbody>

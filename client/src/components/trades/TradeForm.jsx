@@ -1,6 +1,9 @@
 import React from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { tradingAPI } from '../../services/api';
+import { toast } from '@/hooks/use-toast';
 
 const tradeSchema = Yup.object().shape({
   symbol: Yup.string().required('Symbol is required'),
@@ -14,6 +17,8 @@ const tradeSchema = Yup.object().shape({
 });
 
 const TradeForm = ({ onSubmit, initialValues }) => {
+  const queryClient = useQueryClient();
+  
   const defaultValues = {
     symbol: '',
     type: 'buy',
@@ -22,12 +27,90 @@ const TradeForm = ({ onSubmit, initialValues }) => {
     ...initialValues
   };
   
-  const handleSubmit = (values, { setSubmitting }) => {
-    if (initialValues) {
-      onSubmit(initialValues._id, values);
-    } else {
-      onSubmit(values);
+  // Real API integration for order placement
+  const placeOrderMutation = useMutation({
+    mutationFn: async (orderData) => {
+      const formattedOrder = {
+        symbol: orderData.symbol,
+        side: orderData.type,
+        orderType: 'limit',
+        quantity: orderData.amount.toString(),
+        price: orderData.price.toString(),
+        timeInForce: 'day',
+        portfolioId: 'default'
+      };
+      
+      const result = await tradingAPI.placeOrder(formattedOrder);
+      return result;
+    },
+    onSuccess: (result, variables) => {
+      toast({
+        title: "Order Placed Successfully!",
+        description: `${variables.type.toUpperCase()} order for ${variables.amount} shares of ${variables.symbol} at $${variables.price}`,
+        duration: 5000,
+      });
+      
+      // Invalidate and refetch related queries
+      queryClient.invalidateQueries({ queryKey: ['/api/trading/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/trading/positions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/trades/history'] });
+      
+      // Call parent onSubmit if provided
+      if (onSubmit) {
+        onSubmit(result);
+      }
+    },
+    onError: (error, variables) => {
+      console.error('Order placement failed:', error);
+      toast({
+        title: "Order Failed",
+        description: error.message || "Failed to place order. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
     }
+  });
+  
+  const handleSubmit = (values, { setSubmitting, resetForm }) => {
+    // Validation
+    if (!values.symbol || !values.amount || !values.price) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      setSubmitting(false);
+      return;
+    }
+
+    if (parseFloat(values.amount) <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Amount must be greater than 0.",
+        variant: "destructive",
+      });
+      setSubmitting(false);
+      return;
+    }
+
+    if (parseFloat(values.price) <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Price must be greater than 0.",
+        variant: "destructive",
+      });
+      setSubmitting(false);
+      return;
+    }
+
+    // Place order via real API
+    placeOrderMutation.mutate(values);
+    
+    // Reset form on success
+    if (!placeOrderMutation.isError) {
+      resetForm();
+    }
+    
     setSubmitting(false);
   };
   
@@ -99,8 +182,14 @@ const TradeForm = ({ onSubmit, initialValues }) => {
             </div>
             
             <div className="form-buttons">
-              <button type="submit" disabled={isSubmitting} className="submit-btn">
-                {isSubmitting ? 'Processing...' : initialValues ? 'Update Trade' : 'Create Trade'}
+              <button 
+                type="submit" 
+                disabled={isSubmitting || placeOrderMutation.isPending} 
+                className="submit-btn"
+              >
+                {placeOrderMutation.isPending ? 'Placing Order...' : 
+                 isSubmitting ? 'Processing...' : 
+                 initialValues ? 'Update Trade' : 'Place Order'}
               </button>
             </div>
           </Form>
